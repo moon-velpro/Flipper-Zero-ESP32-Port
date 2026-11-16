@@ -48,18 +48,16 @@ CONFIG_HEAP_TRACING_OFF=y
 CONFIG_ESP_SYSTEM_ABORT_ON_ALLOC_FAILURE=n
 
 # =============================================================================
-# Wi-Fi — no PSRAM. IDF 5.4 uses the ESP32_WIFI_ prefix (not ESP_WIFI_).
-# Disable only the generic IRAM fast path to reclaim shared SRAM for DRAM.
-# Keep the RX IRAM fast path, AMPDU RX/TX, and the default 32 dynamic TX buffers.
-# The generic fast path may be slower from flash; measure on physical hardware.
-CONFIG_ESP32_WIFI_IRAM_OPT=n
-CONFIG_ESP32_WIFI_RX_IRAM_OPT=y
-CONFIG_ESP32_WIFI_AMPDU_RX_ENABLED=y
-CONFIG_ESP32_WIFI_AMPDU_TX_ENABLED=y
-CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM=10
-CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM=32
-CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER=y
-CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM=32
+# Wi-Fi — no PSRAM. ESP-IDF 5.4 uses ESP_WIFI_* as the current Kconfig prefix
+# (ESP32_WIFI_* is retained only as a legacy rename alias).
+# Disable the general IRAM fast path to return >10 KB shared SRAM to DRAM, but
+# keep the RX fast path and normal buffer/AMPDU defaults for Wi-Fi performance.
+CONFIG_ESP_WIFI_IRAM_OPT=n
+CONFIG_ESP_WIFI_RX_IRAM_OPT=y
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=10
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER=y
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=32
 
 # =============================================================================
 # LWIP — trimmed for no-PSRAM.
