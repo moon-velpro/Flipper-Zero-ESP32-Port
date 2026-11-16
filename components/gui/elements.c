@@ -355,6 +355,95 @@ static size_t
     return result;
 }
 
+#ifdef FLIPPER_ZH_CN
+static bool elements_contains_multibyte(const char* text) {
+    for(const uint8_t* p = (const uint8_t*)text; *p; ++p) {
+        if(*p >= 0x80) return true;
+    }
+    return false;
+}
+
+/* Return a byte count ending at a complete codepoint, never at a continuation
+ * byte. An empty line (newline) legitimately consumes zero text bytes. */
+static size_t elements_cjk_line_bytes(Canvas* canvas, const char* text, size_t available) {
+    size_t offset = 0;
+    size_t pixels = 0;
+    while(text[offset] != '\0' && text[offset] != '\n') {
+        uint32_t codepoint;
+        size_t next = canvas_utf8_next(text, offset, &codepoint);
+        if(next <= offset) break;
+        size_t glyph = canvas_glyph_width(
+            canvas, codepoint <= UINT16_MAX ? (uint16_t)codepoint : '?');
+
+        if(pixels + glyph > available && offset != 0) break;
+        /* Force one character when the available box is narrower than a glyph:
+         * this is better than looping forever at byte offset zero. */
+        if(pixels + glyph > available && offset == 0) return next;
+        pixels += glyph;
+        offset = next;
+    }
+    return offset;
+}
+
+static size_t elements_cjk_line_space(Canvas* canvas, Align horizontal, int32_t x) {
+    int32_t available;
+    if(horizontal == AlignCenter) {
+        int32_t left = x;
+        int32_t right = (int32_t)canvas_width(canvas) - x;
+        available = 2 * (left < right ? left : right);
+    } else if(horizontal == AlignRight) {
+        available = x;
+    } else {
+        available = (int32_t)canvas_width(canvas) - x;
+    }
+    return available > 0 ? (size_t)available : 0;
+}
+
+static void elements_cjk_multiline_aligned(
+    Canvas* canvas,
+    int32_t x,
+    int32_t y,
+    Align horizontal,
+    Align vertical,
+    const char* text) {
+    size_t available = elements_cjk_line_space(canvas, horizontal, x);
+    size_t line_height = canvas_current_font_height(canvas);
+    if(line_height < 12) line_height = 12;
+    size_t lines = 0;
+
+    /* Count text lines with exactly the same codepoint stepping as drawing. */
+    for(const char* p = text; *p;) {
+        size_t bytes = elements_cjk_line_bytes(canvas, p, available);
+        p += bytes;
+        if(*p == '\n') ++p;
+        ++lines;
+    }
+    if(lines == 0) return;
+
+    if(vertical == AlignBottom) {
+        y -= (int32_t)(line_height * (lines - 1));
+    } else if(vertical == AlignCenter) {
+        y -= (int32_t)((line_height * (lines - 1)) / 2);
+    } else if(vertical == AlignTop) {
+        y += 10;
+    }
+
+    FuriString* line = furi_string_alloc();
+    for(const char* p = text; *p;) {
+        size_t bytes = elements_cjk_line_bytes(canvas, p, available);
+        furi_string_set_strn(line, p, bytes);
+        p += bytes;
+        if(*p == '\n') ++p;
+
+        canvas_draw_str_aligned(
+            canvas, x, y, horizontal, AlignBottom, furi_string_get_cstr(line));
+        if(y > (int32_t)canvas_height(canvas)) break;
+        y += (int32_t)line_height;
+    }
+    furi_string_free(line);
+}
+#endif /* FLIPPER_ZH_CN */
+
 void elements_multiline_text_aligned(
     Canvas* canvas,
     int32_t x,
@@ -364,6 +453,12 @@ void elements_multiline_text_aligned(
     const char* text) {
     furi_check(canvas);
     furi_check(text);
+#ifdef FLIPPER_ZH_CN
+    if(elements_contains_multibyte(text)) {
+        elements_cjk_multiline_aligned(canvas, x, y, horizontal, vertical, text);
+        return;
+    }
+#endif
 
     size_t lines_count = 0;
     size_t font_height = canvas_current_font_height(canvas);
