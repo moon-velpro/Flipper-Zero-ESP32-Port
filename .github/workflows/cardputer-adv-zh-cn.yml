@@ -14,6 +14,10 @@ on:
       - ".github/workflows/cardputer-adv-zh-cn.yml"
   workflow_dispatch:
 
+concurrency:
+  group: cardputer-adv-zh-cn-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-cardputer-adv:
     runs-on: ubuntu-24.04
@@ -98,9 +102,11 @@ jobs:
           grep -Fqx '# CONFIG_SPIRAM is not set' "$sdkconfig"
           grep -Fqx '# CONFIG_ESP32_WIFI_IRAM_OPT is not set' "$sdkconfig"
           grep -Fqx 'CONFIG_ESP32_WIFI_RX_IRAM_OPT=y' "$sdkconfig"
+          grep -Fqx 'CONFIG_ESP32_WIFI_AMPDU_RX_ENABLED=y' "$sdkconfig"
+          grep -Fqx 'CONFIG_ESP32_WIFI_AMPDU_TX_ENABLED=y' "$sdkconfig"
           grep -Fqx 'CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM=10' "$sdkconfig"
           grep -Fqx 'CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM=32' "$sdkconfig"
-          grep -Fqx 'CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM=8' "$sdkconfig"
+          grep -Fqx 'CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM=32' "$sdkconfig"
 
       - name: Verify Cardputer ADV application partition size
         if: steps.localized-build.outcome == 'success'

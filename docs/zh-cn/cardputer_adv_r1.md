@@ -45,7 +45,7 @@ python winbuild.py build --board cardputer_adv
 
 Cardputer ADV 的 ESP32-S3FN8 没有 PSRAM，内部 SRAM 需要在 IRAM 与 DRAM 之间分配。早期干净构建在两项 Wi-Fi IRAM 优化都开启时出现 328 B DRAM 超限。
 
-当前板级配置使用 ESP-IDF 5.4 实际识别的 ESP32_WIFI Kconfig 名称：关闭通用 Wi-Fi IRAM 快速路径（CONFIG_ESP32_WIFI_IRAM_OPT=n），保留接收路径优化（CONFIG_ESP32_WIFI_RX_IRAM_OPT=y）。这样保留 Wi-Fi RX 快速路径，但通用 Wi-Fi 吞吐可能下降。CI 会断言这些配置确实进入生成的 sdkconfig，并使用同一份板级配置比较原版与中文版。
+当前板级配置使用 ESP-IDF 5.4 实际识别的 ESP32_WIFI Kconfig 名称：只关闭通用 Wi-Fi IRAM 快速路径（CONFIG_ESP32_WIFI_IRAM_OPT=n），保留接收路径优化（CONFIG_ESP32_WIFI_RX_IRAM_OPT=y），并保留 AMPDU RX/TX、10 个静态 RX 缓冲、32 个动态 RX 缓冲和默认 32 个动态 TX 缓冲。这样避免通过关闭聚合或削减发送队列来换取内存；通用 Wi-Fi 快速路径改由 Flash 执行，吞吐仍可能下降。CI 会断言这些配置确实进入生成的 sdkconfig，并使用同一份板级配置比较原版与中文版。
 
 发布前必须在 Cardputer ADV 实机验证 Wi-Fi 连接、扫描、持续收发、抓包以及 Wi-Fi/BLE 共存。若吞吐、丢包或响应延迟出现不可接受的退化，不得发布；不能仅凭编译成功判定通过。
 
