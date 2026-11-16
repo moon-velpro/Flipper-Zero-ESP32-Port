@@ -522,7 +522,7 @@ static void loader_menu_build_submenu(LoaderMenuApp* app) {
     for(size_t i = 0; i < FLIPPER_EXTSETTINGS_APPS_COUNT; i++) {
         submenu_add_item_ex(
             app->settings_menu,
-            FLIPPER_EXTSETTINGS_APPS[i].name,
+            LM_T(FLIPPER_EXTSETTINGS_APPS[i].name),
             (uint32_t)FLIPPER_EXTSETTINGS_APPS[i].path,
             loader_menu_settings_menu_callback,
             app);
@@ -530,7 +530,7 @@ static void loader_menu_build_submenu(LoaderMenuApp* app) {
         if(strcmp(FLIPPER_EXTSETTINGS_APPS[i].path, "about") == 0) {
             submenu_add_item(
                 app->settings_menu,
-                "Update Firmware",
+                LM_T("Update Firmware"),
                 0,
                 loader_menu_update_fw_callback,
                 app);
@@ -544,13 +544,13 @@ static void loader_menu_build_submenu(LoaderMenuApp* app) {
         }
         submenu_add_item_ex(
             app->settings_menu,
-            FLIPPER_SETTINGS_APPS[i].name,
+            LM_T(FLIPPER_SETTINGS_APPS[i].name),
             (uint32_t)FLIPPER_SETTINGS_APPS[i].name,
             loader_menu_settings_menu_callback,
             app);
     }
     submenu_add_item(
-        app->settings_menu, "Interface", 0, loader_menu_settings_interface_callback, app);
+        app->settings_menu, LM_T("Interface"), 0, loader_menu_settings_interface_callback, app);
 }
 
 /* ---------------------------------------------------------------- */
@@ -591,11 +591,11 @@ static void loader_menu_interface_go_graphics(void* context, uint32_t index) {
 
 static void loader_menu_build_interface(LoaderMenuApp* app) {
     submenu_reset(app->interface_menu);
-    submenu_set_header(app->interface_menu, "Interface:");
-    submenu_add_item(app->interface_menu, "Graphics", 0, loader_menu_interface_go_graphics, app);
-    submenu_add_item(app->interface_menu, "Main Menu", 1, loader_menu_interface_go_main, app);
-    submenu_add_item(app->interface_menu, "Lock Screen", 2, loader_menu_interface_go_lock, app);
-    submenu_add_item(app->interface_menu, "Status Bar", 3, loader_menu_interface_go_status, app);
+    submenu_set_header(app->interface_menu, LM_T("Interface:"));
+    submenu_add_item(app->interface_menu, LM_T("Graphics"), 0, loader_menu_interface_go_graphics, app);
+    submenu_add_item(app->interface_menu, LM_T("Main Menu"), 1, loader_menu_interface_go_main, app);
+    submenu_add_item(app->interface_menu, LM_T("Lock Screen"), 2, loader_menu_interface_go_lock, app);
+    submenu_add_item(app->interface_menu, LM_T("Status Bar"), 3, loader_menu_interface_go_status, app);
 }
 
 /* ---------------------------------------------------------------- */
@@ -616,7 +616,7 @@ static const char* const loader_menu_menu_style_text[MenuStyleCount] = {
 
 static void loader_menu_main_menu_style_changed(VariableItem* item) {
     uint32_t index = variable_item_get_current_value_index(item);
-    variable_item_set_current_value_text(item, loader_menu_menu_style_text[index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_menu_style_text[index]));
     menu_set_style((MenuStyle)index);
 }
 
@@ -633,11 +633,11 @@ static void loader_menu_main_menu_enter(void* context, uint32_t index) {
 
 static void loader_menu_build_interface_main(LoaderMenuApp* app) {
     variable_item_list_reset(app->interface_main_list);
-    variable_item_list_set_header(app->interface_main_list, "Main Menu:");
+    variable_item_list_set_header(app->interface_main_list, LM_T("Main Menu:"));
 
     VariableItem* item = variable_item_list_add(
         app->interface_main_list,
-        "Menu style",
+        LM_T("Menu style"),
         MenuStyleCount,
         loader_menu_main_menu_style_changed,
         app);
@@ -646,10 +646,10 @@ static void loader_menu_build_interface_main(LoaderMenuApp* app) {
         menu_style = 0;
     }
     variable_item_set_current_value_index(item, (uint8_t)menu_style);
-    variable_item_set_current_value_text(item, loader_menu_menu_style_text[menu_style]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_menu_style_text[menu_style]));
 
-    variable_item_list_add(app->interface_main_list, "Add Item", 0, NULL, app);
-    variable_item_list_add(app->interface_main_list, "Remove Item", 0, NULL, app);
+    variable_item_list_add(app->interface_main_list, LM_T("Add Item"), 0, NULL, app);
+    variable_item_list_add(app->interface_main_list, LM_T("Remove Item"), 0, NULL, app);
     variable_item_list_set_enter_callback(app->interface_main_list, loader_menu_main_menu_enter, app);
 }
 
@@ -664,7 +664,7 @@ static const char* const loader_menu_lock_style_text[LockScreenStyleCount] = {
 
 static void loader_menu_lock_style_changed(VariableItem* item) {
     uint32_t index = variable_item_get_current_value_index(item);
-    variable_item_set_current_value_text(item, loader_menu_lock_style_text[index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_lock_style_text[index]));
     lock_screen_set_style((LockScreenStyle)index);
 }
 
@@ -702,34 +702,34 @@ static void loader_menu_lock_toggle_changed(VariableItem* item) {
     size_t index = (size_t)(uintptr_t)variable_item_get_context(item);
     furi_assert(index < LOADER_MENU_LOCK_TOGGLE_COUNT);
     bool value = variable_item_get_current_value_index(item) != 0;
-    variable_item_set_current_value_text(item, value ? "ON" : "OFF");
+    variable_item_set_current_value_text(item, LM_T(value ? "ON" : "OFF"));
     momentum_settings_set_bool(loader_menu_lock_setting(index), value);
     momentum_settings_save();
 }
 
 static void loader_menu_build_interface_lock(LoaderMenuApp* app) {
     variable_item_list_reset(app->interface_lock_list);
-    variable_item_list_set_header(app->interface_lock_list, "Lock Screen:");
+    variable_item_list_set_header(app->interface_lock_list, LM_T("Lock Screen:"));
 
     VariableItem* item = variable_item_list_add(
-        app->interface_lock_list, "Style", LockScreenStyleCount, loader_menu_lock_style_changed, app);
+        app->interface_lock_list, LM_T("Style"), LockScreenStyleCount, loader_menu_lock_style_changed, app);
     uint32_t style = (uint32_t)lock_screen_get_style();
     if(style >= LockScreenStyleCount) {
         style = 0;
     }
     variable_item_set_current_value_index(item, (uint8_t)style);
-    variable_item_set_current_value_text(item, loader_menu_lock_style_text[style]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_lock_style_text[style]));
 
     for(size_t i = 0; i < LOADER_MENU_LOCK_TOGGLE_COUNT; i++) {
         item = variable_item_list_add(
             app->interface_lock_list,
-            loader_menu_lock_toggles[i].label,
+            LM_T(loader_menu_lock_toggles[i].label),
             2,
             loader_menu_lock_toggle_changed,
             (void*)(uintptr_t)i);
         bool value = momentum_settings_get_bool(loader_menu_lock_setting(i));
         variable_item_set_current_value_index(item, value ? 1 : 0);
-        variable_item_set_current_value_text(item, value ? "ON" : "OFF");
+        variable_item_set_current_value_text(item, LM_T(value ? "ON" : "OFF"));
     }
 }
 
@@ -791,7 +791,7 @@ static const uint32_t loader_menu_clock_enable_value[LOADER_CLOCK_ENABLE_COUNT] 
 
 static void loader_menu_battery_view_changed(VariableItem* item) {
     uint32_t index = variable_item_get_current_value_index(item);
-    variable_item_set_current_value_text(item, loader_menu_battery_view_text[index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_battery_view_text[index]));
 
     LoaderMenuDesktopSettings* settings = malloc(sizeof(LoaderMenuDesktopSettings));
     desktop_settings_load(settings);
@@ -808,7 +808,7 @@ static void loader_menu_battery_view_changed(VariableItem* item) {
 
 static void loader_menu_clock_enabled_changed(VariableItem* item) {
     uint32_t index = variable_item_get_current_value_index(item);
-    variable_item_set_current_value_text(item, loader_menu_clock_enable_text[index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_clock_enable_text[index]));
 
     if(furi_record_exists(LOADER_RECORD_DESKTOP)) {
         LoaderMenuDesktop* desktop = furi_record_open(LOADER_RECORD_DESKTOP);
@@ -829,7 +829,7 @@ static void loader_menu_clock_enabled_changed(VariableItem* item) {
 
 static void loader_menu_status_bar_bg_changed(VariableItem* item) {
     uint32_t index = variable_item_get_current_value_index(item);
-    variable_item_set_current_value_text(item, loader_menu_status_bar_bg_text[index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_status_bar_bg_text[index]));
 
     if(furi_record_exists(LOADER_RECORD_DESKTOP)) {
         LoaderMenuDesktop* desktop = furi_record_open(LOADER_RECORD_DESKTOP);
@@ -852,7 +852,7 @@ static void loader_menu_status_icon_changed(VariableItem* item) {
     size_t index = (size_t)(uintptr_t)variable_item_get_context(item);
     furi_assert(index < LOADER_MENU_STATUS_ICON_COUNT);
     bool visible = variable_item_get_current_value_index(item) != 0;
-    variable_item_set_current_value_text(item, visible ? "ON" : "OFF");
+    variable_item_set_current_value_text(item, LM_T(visible ? "ON" : "OFF"));
     momentum_settings_set_statusbar_icon_visible(loader_menu_status_icon_toggles[index].icon, visible);
     momentum_settings_save();
     bt_statusbar_refresh();
@@ -866,14 +866,14 @@ static void loader_menu_status_icon_changed(VariableItem* item) {
 
 static void loader_menu_build_interface_status(LoaderMenuApp* app) {
     variable_item_list_reset(app->interface_status_list);
-    variable_item_list_set_header(app->interface_status_list, "Status Bar:");
+    variable_item_list_set_header(app->interface_status_list, LM_T("Status Bar:"));
 
     LoaderMenuDesktopSettings* settings = malloc(sizeof(LoaderMenuDesktopSettings));
     desktop_settings_load(settings);
 
     VariableItem* item = variable_item_list_add(
         app->interface_status_list,
-        "Battery Icon",
+        LM_T("Battery Icon"),
         LOADER_BATTERY_VIEW_COUNT,
         loader_menu_battery_view_changed,
         app);
@@ -885,41 +885,41 @@ static void loader_menu_build_interface_status(LoaderMenuApp* app) {
         }
     }
     variable_item_set_current_value_index(item, (uint8_t)v);
-    variable_item_set_current_value_text(item, loader_menu_battery_view_text[v]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_battery_view_text[v]));
 
     item = variable_item_list_add(
         app->interface_status_list,
-        "Show Clock",
+        LM_T("Show Clock"),
         LOADER_CLOCK_ENABLE_COUNT,
         loader_menu_clock_enabled_changed,
         app);
     uint32_t c = (settings->display_clock != 0) ? 1 : 0;
     variable_item_set_current_value_index(item, (uint8_t)c);
-    variable_item_set_current_value_text(item, loader_menu_clock_enable_text[c]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_clock_enable_text[c]));
 
     item = variable_item_list_add(
         app->interface_status_list,
-        "Bar Background",
+        LM_T("Bar Background"),
         LOADER_STATUS_BAR_BG_COUNT,
         loader_menu_status_bar_bg_changed,
         app);
     uint32_t bg = settings->display_status_bar_background != 0 ? 1 : 0;
     variable_item_set_current_value_index(item, (uint8_t)bg);
-    variable_item_set_current_value_text(item, loader_menu_status_bar_bg_text[bg]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_status_bar_bg_text[bg]));
 
     free(settings);
 
     for(size_t i = 0; i < LOADER_MENU_STATUS_ICON_COUNT; i++) {
         item = variable_item_list_add(
             app->interface_status_list,
-            loader_menu_status_icon_toggles[i].label,
+            LM_T(loader_menu_status_icon_toggles[i].label),
             2,
             loader_menu_status_icon_changed,
             (void*)(uintptr_t)i);
         bool visible =
             momentum_settings_statusbar_icon_visible(loader_menu_status_icon_toggles[i].icon);
         variable_item_set_current_value_index(item, visible ? 1 : 0);
-        variable_item_set_current_value_text(item, visible ? "ON" : "OFF");
+        variable_item_set_current_value_text(item, LM_T(visible ? "ON" : "OFF"));
     }
 }
 
@@ -1008,7 +1008,7 @@ static void loader_menu_asset_pack_changed(VariableItem* item) {
     furi_assert(index <= app->asset_pack_count);
     const char* text =
         (index == 0) ? "Default" : furi_string_get_cstr(app->asset_pack_names[index - 1]);
-    variable_item_set_current_value_text(item, text);
+    variable_item_set_current_value_text(item, LM_T(text);
     app->asset_pack_index = index;
     momentum_settings_set_asset_pack(index == 0 ? "" : text);
     loader_menu_graphics_dirty = true;
@@ -1017,7 +1017,7 @@ static void loader_menu_asset_pack_changed(VariableItem* item) {
 static void loader_menu_anim_speed_changed(VariableItem* item) {
     uint32_t index = variable_item_get_current_value_index(item);
     furi_assert(index < LOADER_ANIM_SPEED_COUNT);
-    variable_item_set_current_value_text(item, loader_menu_anim_speed_text[index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_anim_speed_text[index]));
     momentum_settings_set_anim_speed(loader_menu_anim_speed_value[index]);
     loader_menu_graphics_dirty = true;
 }
@@ -1025,26 +1025,26 @@ static void loader_menu_anim_speed_changed(VariableItem* item) {
 static void loader_menu_cycle_anims_changed(VariableItem* item) {
     uint32_t index = variable_item_get_current_value_index(item);
     furi_assert(index < LOADER_CYCLE_ANIMS_COUNT);
-    variable_item_set_current_value_text(item, loader_menu_cycle_anims_text[index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_cycle_anims_text[index]));
     momentum_settings_set_cycle_anims(loader_menu_cycle_anims_value[index]);
     loader_menu_graphics_dirty = true;
 }
 
 static void loader_menu_unlock_anims_changed(VariableItem* item) {
     bool value = variable_item_get_current_value_index(item) != 0;
-    variable_item_set_current_value_text(item, value ? "ON" : "OFF");
+    variable_item_set_current_value_text(item, LM_T(value ? "ON" : "OFF"));
     momentum_settings_set_bool(MomentumSettingsBoolUnlockAnims, value);
     loader_menu_graphics_dirty = true;
 }
 
 static void loader_menu_build_interface_graphics(LoaderMenuApp* app) {
     variable_item_list_reset(app->interface_graphics_list);
-    variable_item_list_set_header(app->interface_graphics_list, "Graphics:");
+    variable_item_list_set_header(app->interface_graphics_list, LM_T("Graphics:"));
     loader_menu_scan_asset_packs(app);
 
     VariableItem* item = variable_item_list_add(
         app->interface_graphics_list,
-        "Asset Pack",
+        LM_T("Asset Pack"),
         (uint8_t)(app->asset_pack_count + 1),
         loader_menu_asset_pack_changed,
         app);
@@ -1053,12 +1053,12 @@ static void loader_menu_build_interface_graphics(LoaderMenuApp* app) {
     variable_item_set_current_value_index(item, (uint8_t)pack_index);
     variable_item_set_current_value_text(
         item,
-        pack_index == 0 ? "Default" :
+        pack_index == 0 ? LM_T("Default") :
                           furi_string_get_cstr(app->asset_pack_names[pack_index - 1]));
 
     item = variable_item_list_add(
         app->interface_graphics_list,
-        "Anim Speed",
+        LM_T("Anim Speed"),
         (uint8_t)LOADER_ANIM_SPEED_COUNT,
         loader_menu_anim_speed_changed,
         app);
@@ -1073,11 +1073,11 @@ static void loader_menu_build_interface_graphics(LoaderMenuApp* app) {
         }
     }
     variable_item_set_current_value_index(item, (uint8_t)speed_index);
-    variable_item_set_current_value_text(item, loader_menu_anim_speed_text[speed_index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_anim_speed_text[speed_index]));
 
     item = variable_item_list_add(
         app->interface_graphics_list,
-        "Cycle Anims",
+        LM_T("Cycle Anims"),
         (uint8_t)LOADER_CYCLE_ANIMS_COUNT,
         loader_menu_cycle_anims_changed,
         app);
@@ -1090,12 +1090,12 @@ static void loader_menu_build_interface_graphics(LoaderMenuApp* app) {
         }
     }
     variable_item_set_current_value_index(item, (uint8_t)cycle_index);
-    variable_item_set_current_value_text(item, loader_menu_cycle_anims_text[cycle_index]);
+    variable_item_set_current_value_text(item, LM_T(loader_menu_cycle_anims_text[cycle_index]));
 
     item = variable_item_list_add(
-        app->interface_graphics_list, "Unlock Anims", 2, loader_menu_unlock_anims_changed, app);
+        app->interface_graphics_list, LM_T("Unlock Anims"), 2, loader_menu_unlock_anims_changed, app);
     variable_item_set_current_value_index(item, settings.unlock_anims ? 1 : 0);
-    variable_item_set_current_value_text(item, settings.unlock_anims ? "ON" : "OFF");
+    variable_item_set_current_value_text(item, LM_T(settings.unlock_anims ? "ON" : "OFF"));
 }
 
 /* ---------------------------------------------------------------- */
@@ -1108,9 +1108,9 @@ static void loader_menu_add_menu_main_callback(void* context, uint32_t index);
 
 static void loader_menu_build_add_menu(LoaderMenuApp* app) {
     submenu_reset(app->add_menu);
-    submenu_set_header(app->add_menu, "Add Menu Item:");
-    submenu_add_item(app->add_menu, "Main App", 0, loader_menu_add_menu_main_callback, app);
-    submenu_add_item(app->add_menu, "External App", 1, loader_menu_add_external_callback, app);
+    submenu_set_header(app->add_menu, LM_T("Add Menu Item:"));
+    submenu_add_item(app->add_menu, LM_T("Main App"), 0, loader_menu_add_menu_main_callback, app);
+    submenu_add_item(app->add_menu, LM_T("External App"), 1, loader_menu_add_external_callback, app);
 }
 
 /* "Main App" entry: switch to the built-in apps picker (Add Main view). */
@@ -1142,7 +1142,7 @@ static bool loader_menu_add_main_skip(const char* appid) {
 /* "Main App" tab: every built-in internal app, locked if already in menu. */
 static void loader_menu_build_add_main(LoaderMenuApp* app) {
     submenu_reset(app->add_main_menu);
-    submenu_set_header(app->add_main_menu, "Main App");
+    submenu_set_header(app->add_main_menu, LM_T("Main App"));
 
     for(size_t i = 0; i < FLIPPER_APPS_COUNT; ++i) {
         if(loader_menu_add_main_skip(FLIPPER_APPS[i].appid)) {
@@ -1151,12 +1151,12 @@ static void loader_menu_build_add_main(LoaderMenuApp* app) {
         bool locked = loader_menu_app_is_visible(app, FLIPPER_APPS[i].appid);
         submenu_add_lockable_item(
             app->add_main_menu,
-            FLIPPER_APPS[i].name,
+            LM_T(FLIPPER_APPS[i].name),
             (uint32_t)i,
             loader_menu_add_main_callback,
             app,
             locked,
-            "Already in menu");
+            LM_T("Already in menu"));
     }
     for(size_t i = 0; i < FLIPPER_SYSTEM_APPS_COUNT; ++i) {
         if(loader_menu_add_main_skip(FLIPPER_SYSTEM_APPS[i].appid)) {
@@ -1165,12 +1165,12 @@ static void loader_menu_build_add_main(LoaderMenuApp* app) {
         bool locked = loader_menu_app_is_visible(app, FLIPPER_SYSTEM_APPS[i].appid);
         submenu_add_lockable_item(
             app->add_main_menu,
-            FLIPPER_SYSTEM_APPS[i].name,
+            LM_T(FLIPPER_SYSTEM_APPS[i].name),
             (uint32_t)(FLIPPER_APPS_COUNT + i),
             loader_menu_add_main_callback,
             app,
             locked,
-            "Already in menu");
+            LM_T("Already in menu"));
     }
 }
 
@@ -1290,7 +1290,7 @@ static void loader_menu_remove_callback(void* context, uint32_t index) {
 
 void loader_menu_build_remove(LoaderMenuApp* app) {
     submenu_reset(app->remove_menu);
-    submenu_set_header(app->remove_menu, "Remove Item:");
+    submenu_set_header(app->remove_menu, LM_T("Remove Item:"));
     for(size_t i = 0; i < app->entries_count; ++i) {
         const LoaderMenuEntry* entry = &app->entries[i];
         if(entry->kind == LoaderMenuEntryKindSettings) {
