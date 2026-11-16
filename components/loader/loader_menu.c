@@ -313,26 +313,39 @@ static const char* loader_menu_zh_cn(const char* source) {
     }
     return source;
 }
+static const char* loader_menu_zh_cn_primary(const char* source) {
+    switch(menu_get_style()) {
+    case MenuStyleC64:
+    case MenuStyleCompact:
+    case MenuStyleMNTM:
+        /* These layouts use 8–10px rows; the 12px CJK font would overlap rows. */
+        return source ? source : "";
+    default:
+        return loader_menu_zh_cn(source);
+    }
+}
 #define LM_T(source) loader_menu_zh_cn(source)
+#define LM_PRIMARY_T(source) loader_menu_zh_cn_primary(source)
 #else
 #define LM_T(source) (source)
+#define LM_PRIMARY_T(source) (source)
 #endif
 
 static const char* loader_menu_entries_label(const LoaderMenuApp* app, size_t pos) {
     const LoaderMenuEntry* entry = &app->entries[pos];
     switch(entry->kind) {
     case LoaderMenuEntryKindApplications:
-        return LM_T(LOADER_APPLICATIONS_NAME);
+        return LM_PRIMARY_T(LOADER_APPLICATIONS_NAME);
     case LoaderMenuEntryKindInternal:
-        return LM_T(FLIPPER_APPS[entry->index].name);
+        return LM_PRIMARY_T(FLIPPER_APPS[entry->index].name);
     case LoaderMenuEntryKindExternal:
-        return LM_T(FLIPPER_EXTERNAL_APPS[entry->index].name);
+        return LM_PRIMARY_T(FLIPPER_EXTERNAL_APPS[entry->index].name);
     case LoaderMenuEntryKindInternalAdded:
-        return LM_T(FLIPPER_SYSTEM_APPS[entry->index].name);
+        return LM_PRIMARY_T(FLIPPER_SYSTEM_APPS[entry->index].name);
     case LoaderMenuEntryKindFap:
-        return LM_T(furi_string_get_cstr(app->faps[entry->index].name));
+        return LM_PRIMARY_T(furi_string_get_cstr(app->faps[entry->index].name));
     case LoaderMenuEntryKindSettings:
-        return LM_T("Settings");
+        return LM_PRIMARY_T("Settings");
     }
     return "";
 }

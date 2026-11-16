@@ -216,7 +216,8 @@ static void canvas_draw_unicode_glyph(Canvas* canvas, int32_t x, int32_t y, uint
         u8g2_SetFont(&canvas->fb, u8g2_font_wqy12_t_gb2312);
         if(u8g2_IsGlyph(&canvas->fb, ch)) {
             /* Existing logical UI has 11-16 px rows: keep CJK within a row. */
-            int32_t baseline_shift = canvas->fb.font_decode.dir == 0 ? 2 : 0;
+            const uint8_t direction = canvas->fb.font_decode.dir;
+            int32_t baseline_shift = (direction == 0 || direction == 2) ? 2 : 0;
             u8g2_DrawGlyph(&canvas->fb, x, y + baseline_shift, ch);
             u8g2_SetFont(&canvas->fb, prior_font);
             return;
@@ -372,11 +373,13 @@ uint16_t canvas_string_width(Canvas* canvas, const char* str) {
 size_t canvas_glyph_width(Canvas* canvas, uint16_t symbol) {
     furi_check(canvas);
 #ifdef FLIPPER_ZH_CN
-    int8_t advance = canvas_glyph_advance(canvas, symbol);
-    return advance > 0 ? (size_t)advance : 0;
-#else
-    return u8g2_GetGlyphWidth(&canvas->fb, symbol);
+    if(canvas_utf8_is_cjk(symbol)) {
+        int8_t advance = canvas_glyph_advance(canvas, symbol);
+        return advance > 0 ? (size_t)advance : 0;
+    }
 #endif
+    /* Preserve the original U8g2 result for every non-CJK glyph. */
+    return u8g2_GetGlyphWidth(&canvas->fb, symbol);
 }
 
 void canvas_draw_bitmap(

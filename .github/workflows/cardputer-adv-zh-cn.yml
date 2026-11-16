@@ -85,6 +85,23 @@ jobs:
           python3 winbuild.py check
           python3 winbuild.py build --board cardputer_adv
 
+      - name: Verify Cardputer ADV application partition size
+        if: steps.localized-build.outcome == 'success'
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          image = Path("build_cardputer_adv/furi_esp32.bin")
+          partition_size = 0x600000
+          if not image.is_file():
+              raise SystemExit(f"Missing application image: {image}")
+          image_size = image.stat().st_size
+          print(f"Cardputer ADV application image: {image_size} bytes")
+          print(f"Factory application partition: {partition_size} bytes")
+          if image_size > partition_size:
+              raise SystemExit("Application image exceeds the 6 MiB factory partition.")
+          PY
+
       - name: Upload linker diagnostics on failure
         if: always() && (steps.baseline-build.outcome == 'failure' || steps.localized-build.outcome == 'failure')
         uses: actions/upload-artifact@v4

@@ -64,11 +64,22 @@ size_t canvas_utf8_prev(const char* text, size_t offset) {
     if(!text || offset == 0) return 0;
 
     const uint8_t* bytes = (const uint8_t*)text;
-    size_t start = offset - 1;
-    while(start > 0 && (bytes[start] & 0xC0) == 0x80) {
-        start--;
+    const size_t earliest_candidate = offset > 4 ? offset - 4 : 0;
+
+    /* Validate a possible lead byte by decoding it to exactly this boundary.
+     * Malformed bytes are treated as one-byte replacement characters. */
+    for(size_t candidate_end = offset; candidate_end > earliest_candidate; --candidate_end) {
+        const size_t candidate = candidate_end - 1;
+        if((bytes[candidate] & 0xC0) == 0x80) continue;
+
+        uint32_t codepoint = 0;
+        if(canvas_utf8_next(text, candidate, &codepoint) == offset) {
+            return candidate;
+        }
     }
-    return start;
+
+    /* The preceding byte is malformed or the caller supplied a non-boundary. */
+    return offset - 1;
 }
 
 bool canvas_utf8_is_cjk(uint32_t codepoint) {

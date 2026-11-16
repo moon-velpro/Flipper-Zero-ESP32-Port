@@ -43,12 +43,20 @@ int main(void) {
     assert(canvas_utf8_prev(mixed, 9) == 8);
     assert(canvas_utf8_prev(mixed, 0) == 0);
 
+    const char malformed[] = {'A', (char)0x80, 'B', 0};
+    assert(canvas_utf8_prev(malformed, 2) == 1);
+    assert(canvas_utf8_prev(malformed, 3) == 2);
+    const char malformed_sequence[] = {'A', (char)0xE4, (char)0x80, 'B', 0};
+    assert(canvas_utf8_prev(malformed_sequence, 3) == 2);
+    assert(canvas_utf8_prev(malformed_sequence, 4) == 3);
+
     assert(canvas_utf8_is_cjk(0x4E2D));
     assert(canvas_utf8_is_cjk(0x3001));
     assert(canvas_utf8_is_cjk(0xFF0C));
     assert(!canvas_utf8_is_cjk(0x00E9));
     assert(!canvas_utf8_contains_cjk("WiFi"));
     assert(!canvas_utf8_contains_cjk("\xC3\xA9"));
+    assert(!canvas_utf8_contains_cjk("\xEE\x80\x80"));
     assert(canvas_utf8_contains_cjk("\xE4\xB8\xad"));
     assert(canvas_utf8_contains_cjk("\xE3\x80\x81"));
 
