@@ -115,7 +115,7 @@ jobs:
               return pathlib.Path(path).read_text(errors="replace")
 
           def section(text, name):
-              pattern = rf"^{re.escape(name)}\s+(0x[0-9a-fA-F]+)\\s+(0x[0-9a-fA-F]+)"
+              pattern = rf"^{re.escape(name)}\s+(0x[0-9a-fA-F]+)\s+(0x[0-9a-fA-F]+)"
               match = re.search(pattern, text, re.MULTILINE)
               if not match:
                   raise SystemExit(f"Missing map section: {name}")
