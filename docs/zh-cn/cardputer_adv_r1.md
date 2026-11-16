@@ -45,7 +45,7 @@ python winbuild.py build --board cardputer_adv
 
 Cardputer ADV 的 ESP32-S3FN8 没有 PSRAM，内部 SRAM 需要在 IRAM 与 DRAM 之间分配。早期干净构建在两项 Wi-Fi IRAM 优化都开启时出现 328 B DRAM 超限。
 
-当前板级配置使用 ESP-IDF 5.4 实际识别的 ESP32_WIFI Kconfig 名称：只关闭通用 Wi-Fi IRAM 快速路径（CONFIG_ESP32_WIFI_IRAM_OPT=n），保留接收路径优化（CONFIG_ESP32_WIFI_RX_IRAM_OPT=y），并保留 AMPDU RX/TX、10 个静态 RX 缓冲、32 个动态 RX 缓冲和默认 32 个动态 TX 缓冲。这样避免通过关闭聚合或削减发送队列来换取内存；通用 Wi-Fi 快速路径改由 Flash 执行，吞吐仍可能下降。CI 会断言这些配置确实进入生成的 sdkconfig，并使用同一份板级配置比较原版与中文版。
+当前板级配置使用 ESP-IDF 5.4 的正式 Kconfig 名称 ESP_WIFI_*（ESP32_WIFI_* 是旧名称的兼容重命名）：只关闭通用 Wi-Fi IRAM 快速路径（CONFIG_ESP_WIFI_IRAM_OPT=n），保留接收路径优化（CONFIG_ESP_WIFI_RX_IRAM_OPT=y），并保留 AMPDU RX/TX、10 个静态 RX 缓冲、32 个动态 RX 缓冲和默认 32 个动态 TX 缓冲。这样避免通过关闭聚合或削减发送队列来换取内存；通用 Wi-Fi 快速路径改由 Flash 执行，吞吐仍可能下降。CI 会断言这些配置确实进入生成的 sdkconfig，并使用同一份板级配置比较原版与中文版。
 
 发布前必须在 Cardputer ADV 实机验证 Wi-Fi 连接、扫描、持续收发、抓包以及 Wi-Fi/BLE 共存。若吞吐、丢包或响应延迟出现不可接受的退化，不得发布；不能仅凭编译成功判定通过。
 
@@ -53,7 +53,7 @@ Cardputer ADV 的 ESP32-S3FN8 没有 PSRAM，内部 SRAM 需要在 IRAM 与 DRAM
 ## 尚未完成
 
 - **R1 代码尚未经过 Cardputer-Adv 实机验证。**
-- `TextBox` 导航和 `elements_text_box` 富文本绘制已增加 UTF-8 字符边界处理；其他应用内部自绘文本控件仍需逐一审查，不能据此认为全项目页面都已完成中文适配。
+- `TextBox` 导航、`elements_text_box` 富文本绘制、滚动文本和文本输入光标已增加 UTF-8 字符边界处理；其他应用内部自绘文本控件仍需逐一审查，不能据此认为全项目页面都已完成中文适配。
 - 各个内置应用中的业务页面、错误提示尚未全面汉化。
 - 暂时没有语言切换设置：对 Cardputer-Adv 默认编译中文；其他板型为英文。
 - 字形基线偏移当前为代码内的临时数值，须按实机显示调整。
