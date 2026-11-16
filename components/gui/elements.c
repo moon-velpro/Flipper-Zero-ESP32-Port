@@ -1181,7 +1181,6 @@ static void elements_text_box_utf8(
     bool full_text_processed = false;
 
     canvas_set_font(canvas, FontSecondary);
-    const size_t dots_width = canvas_string_width(canvas, "...");
     lines[0].text = text;
 
     while(!full_text_processed && line_num < ELEMENTS_MAX_LINES_NUM) {
@@ -1360,9 +1359,9 @@ static void elements_text_box_utf8(
                 canvas_draw_glyph(canvas, lines[i].x, lines[i].y, glyph);
                 canvas_invert_color(canvas);
             } else if((i == line_num - 1) && strip_to_dots &&
-                      (lines[i].x + (int32_t)glyph_width + (int32_t)dots_width >
+                      (lines[i].x + (int32_t)glyph_width +
+                       (int32_t)canvas_string_width(canvas, "...") >
                        x + (int32_t)width)) {
-                canvas_set_font(canvas, FontSecondary);
                 canvas_draw_str(canvas, lines[i].x, lines[i].y, "...");
                 break;
             } else {
