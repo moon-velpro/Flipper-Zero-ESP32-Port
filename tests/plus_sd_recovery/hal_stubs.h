@@ -51,6 +51,16 @@ typedef struct {
     struct {int mfg_id,oem_id,revision,date;uint32_t serial;char name[6];} cid;
 } sdmmc_card_t;
 esp_err_t sdspi_host_init(void);
+int64_t esp_timer_get_time(void) {
+    static int64_t elapsed_us;
+    elapsed_us += 100;
+    return elapsed_us;
+}
+esp_err_t sdspi_host_get_real_freq(sdspi_dev_handle_t handle, int* real_freq_khz) {
+    assert(handle == 1 && real_freq_khz);
+    *real_freq_khz = 20000;
+    return ESP_OK;
+}
 #define SDSPI_DEVICE_CONFIG_DEFAULT() ((sdspi_device_config_t){.host_id=SPI2_HOST,.gpio_cd=-1,.gpio_wp=-1,.gpio_int=-1})
 #define SDSPI_HOST_DEFAULT() ((sdmmc_host_t){.max_freq_khz=20000,.init=sdspi_host_init})
 static unsigned lock_depth,peak_lock,device_count,peak_devices,device_adds,device_removes,global_deinits;
