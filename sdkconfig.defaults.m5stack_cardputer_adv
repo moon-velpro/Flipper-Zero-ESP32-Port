@@ -15,7 +15,7 @@ CONFIG_PARTITION_TABLE_FILENAME="partitions_singleapp_large.csv"
 
 # =============================================================================
 # PSRAM — DISABLED. The Cardputer ADV (ESP32-S3FN8) has no PSRAM, so malloc lives
-# entirely in internal RAM; WiFi/LWIP buffers below are trimmed to fit.
+# entirely in internal RAM. Wi-Fi protocol buffers remain at supported defaults.
 # =============================================================================
 CONFIG_SPIRAM=n
 
