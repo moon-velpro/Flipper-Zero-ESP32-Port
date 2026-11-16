@@ -48,7 +48,7 @@ python winbuild.py build --board cardputer_adv
 ## 尚未完成
 
 - **R1 代码尚未经过 Cardputer-Adv 实机验证。**
-- `components/gui/modules/text_box.c` 与部分复杂格式文本控件仍然依赖原来的字节级分页逻辑，中文长文本的支持属于后续阶段。
+- `TextBox` 导航和 `elements_text_box` 富文本绘制已增加 UTF-8 字符边界处理；其他应用内部自绘文本控件仍需逐一审查，不能据此认为全项目页面都已完成中文适配。
 - 各个内置应用中的业务页面、错误提示尚未全面汉化。
 - 暂时没有语言切换设置：对 Cardputer-Adv 默认编译中文；其他板型为英文。
 - 字形基线偏移当前为代码内的临时数值，须按实机显示调整。

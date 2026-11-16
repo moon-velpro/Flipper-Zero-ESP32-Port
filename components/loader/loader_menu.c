@@ -331,25 +331,34 @@ static const char* loader_menu_zh_cn_primary(const char* source) {
 #define LM_PRIMARY_T(source) (source)
 #endif
 
-static const char* loader_menu_entries_label(const LoaderMenuApp* app, size_t pos) {
+static const char* loader_menu_entries_label(
+    const LoaderMenuApp* app,
+    size_t pos,
+    bool primary_menu) {
     const LoaderMenuEntry* entry = &app->entries[pos];
+    const char* source = "";
     switch(entry->kind) {
     case LoaderMenuEntryKindApplications:
-        return LM_PRIMARY_T(LOADER_APPLICATIONS_NAME);
+        source = LOADER_APPLICATIONS_NAME;
+        break;
     case LoaderMenuEntryKindInternal:
-        return LM_PRIMARY_T(FLIPPER_APPS[entry->index].name);
+        source = FLIPPER_APPS[entry->index].name;
+        break;
     case LoaderMenuEntryKindExternal:
-        return LM_PRIMARY_T(FLIPPER_EXTERNAL_APPS[entry->index].name);
+        source = FLIPPER_EXTERNAL_APPS[entry->index].name;
+        break;
     case LoaderMenuEntryKindInternalAdded:
-        return LM_PRIMARY_T(FLIPPER_SYSTEM_APPS[entry->index].name);
+        source = FLIPPER_SYSTEM_APPS[entry->index].name;
+        break;
     case LoaderMenuEntryKindFap:
-        return LM_PRIMARY_T(furi_string_get_cstr(app->faps[entry->index].name));
+        source = furi_string_get_cstr(app->faps[entry->index].name);
+        break;
     case LoaderMenuEntryKindSettings:
-        return LM_PRIMARY_T("Settings");
+        source = "Settings";
+        break;
     }
-    return "";
+    return primary_menu ? LM_PRIMARY_T(source) : LM_T(source);
 }
-
 static const Icon* loader_menu_entries_icon(const LoaderMenuApp* app, size_t pos) {
     const LoaderMenuEntry* entry = &app->entries[pos];
     switch(entry->kind) {
@@ -367,6 +376,22 @@ static const Icon* loader_menu_entries_icon(const LoaderMenuApp* app, size_t pos
         return &A_Settings_14;
     }
     return NULL;
+}
+
+static void loader_menu_refresh_primary(LoaderMenuApp* app, bool focus_settings) {
+    menu_reset(app->primary_menu);
+    for(size_t i = 0; i < app->entries_count; ++i) {
+        menu_add_item(
+            app->primary_menu,
+            loader_menu_entries_label(app, i, true),
+            loader_menu_entries_icon(app, i),
+            (uint32_t)i,
+            loader_menu_primary_callback,
+            app);
+        if(focus_settings && app->entries[i].kind == LoaderMenuEntryKindSettings) {
+            menu_set_selected_item(app->primary_menu, (uint32_t)i);
+        }
+    }
 }
 
 /* Load a .fap's display name and 10x10 icon into a persistent slot. */
@@ -486,15 +511,7 @@ static void loader_menu_build_menu(LoaderMenuApp* app) {
         }
     }
 
-    for(size_t i = 0; i < app->entries_count; ++i) {
-        menu_add_item(
-            app->primary_menu,
-            loader_menu_entries_label(app, i),
-            loader_menu_entries_icon(app, i),
-            (uint32_t)i,
-            loader_menu_primary_callback,
-            app);
-    }
+    loader_menu_refresh_primary(app, false);
 }
 
 /* ---------------------------------------------------------------- */
@@ -631,6 +648,10 @@ static void loader_menu_main_menu_style_changed(VariableItem* item) {
     uint32_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, LM_T(loader_menu_menu_style_text[index]));
     menu_set_style((MenuStyle)index);
+
+    LoaderMenuApp* app = variable_item_get_context(item);
+    furi_assert(app);
+    loader_menu_refresh_primary(app, true);
 }
 
 static void loader_menu_main_menu_enter(void* context, uint32_t index) {
@@ -1311,7 +1332,7 @@ void loader_menu_build_remove(LoaderMenuApp* app) {
         }
         submenu_add_item(
             app->remove_menu,
-            loader_menu_entries_label(app, i),
+            loader_menu_entries_label(app, i, false),
             (uint32_t)i,
             loader_menu_remove_callback,
             app);
