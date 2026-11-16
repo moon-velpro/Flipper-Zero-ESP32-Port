@@ -264,13 +264,16 @@ static void widget_element_text_scroll_draw(Canvas* canvas, WidgetElement* eleme
             if(curr_line < model->scroll_pos_current) continue;
             TextScrollLineArray* line = TextScrollLineArray_ref(it);
             const CanvasFontParameters* params = canvas_get_font_params(canvas, line->font);
-            size_t line_height = params->height;
 #ifdef FLIPPER_ZH_CN
             const bool has_cjk =
                 canvas_utf8_contains_cjk(furi_string_get_cstr(line->text));
-            if(has_cjk && line_height < 12) line_height = 12;
+            if(has_cjk) {
+                size_t line_height = params->height;
+                if(line_height < 12) line_height = 12;
+                if(y + line_height > model->y + model->height) break;
+            } else
 #endif
-            if(y + line_height > model->y + model->height) break;
+            if(y + params->descender > model->y + model->height) break;
             canvas_set_font(canvas, line->font);
             if(line->horizontal == AlignLeft) {
                 x = model->x;
