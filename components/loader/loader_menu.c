@@ -1008,7 +1008,7 @@ static void loader_menu_asset_pack_changed(VariableItem* item) {
     furi_assert(index <= app->asset_pack_count);
     const char* text =
         (index == 0) ? "Default" : furi_string_get_cstr(app->asset_pack_names[index - 1]);
-    variable_item_set_current_value_text(item, LM_T(text);
+    variable_item_set_current_value_text(item, LM_T(text));
     app->asset_pack_index = index;
     momentum_settings_set_asset_pack(index == 0 ? "" : text);
     loader_menu_graphics_dirty = true;
