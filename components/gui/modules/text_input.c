@@ -246,6 +246,7 @@ static void switch_keyboard(TextInputModel* model) {
 }
 
 static size_t text_input_utf8_previous(const char* text, size_t offset) {
+    if(!text) return 0;
     const size_t length = strlen(text);
     if(offset > length) offset = length;
 #ifdef FLIPPER_ZH_CN
@@ -256,6 +257,7 @@ static size_t text_input_utf8_previous(const char* text, size_t offset) {
 }
 
 static size_t text_input_utf8_next(const char* text, size_t offset) {
+    if(!text) return 0;
     const size_t length = strlen(text);
     if(offset >= length) return length;
 #ifdef FLIPPER_ZH_CN
@@ -287,6 +289,8 @@ static void text_input_backspace_cb(TextInputModel* model) {
         model->text_buffer[0] = 0;
         model->cursor_pos = 0;
     } else if(model->cursor_pos > 0) {
+        const size_t text_length = strlen(model->text_buffer);
+        if(model->cursor_pos > text_length) model->cursor_pos = text_length;
         const size_t previous = text_input_utf8_previous(model->text_buffer, model->cursor_pos);
         char* move = model->text_buffer + model->cursor_pos;
         memmove(model->text_buffer + previous, move, strlen(move) + 1);
@@ -302,6 +306,20 @@ static void text_input_view_draw_callback(Canvas* canvas, void* _model) {
 
     model->cursor_pos = model->cursor_pos > text_length ? text_length : model->cursor_pos;
     size_t cursor_pos = model->cursor_pos;
+#ifdef FLIPPER_ZH_CN
+    if(model->text_buffer) {
+        size_t offset = 0;
+        while(offset < cursor_pos) {
+            const size_t next = text_input_utf8_next(model->text_buffer, offset);
+            if(next <= offset || next > cursor_pos) {
+                cursor_pos = offset;
+                break;
+            }
+            offset = next;
+        }
+        model->cursor_pos = cursor_pos;
+    }
+#endif
 
     canvas_clear(canvas);
     canvas_set_color(canvas, ColorBlack);
