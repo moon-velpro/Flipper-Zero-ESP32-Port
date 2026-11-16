@@ -241,21 +241,98 @@ static size_t loader_menu_entries_add(LoaderMenuApp* app, LoaderMenuEntryKind ki
     return app->entries_count++;
 }
 
+/* Translate UI labels only; preserve English launch IDs and saved keys. */
+#ifdef FLIPPER_ZH_CN
+static const char* loader_menu_zh_cn(const char* source) {
+    static const struct { const char* en; const char* zh; } labels[] = {
+        {"Apps", "应用"},
+        {"Settings", "设置"},
+        {"About", "关于"},
+        {"Archive", "文件管理"},
+        {"Bluetooth", "蓝牙"},
+        {"Wi-Fi", "无线网络"},
+        {"WiFi", "无线网络"},
+        {"Infrared", "红外"},
+        {"Update Firmware", "固件更新"},
+        {"Interface", "界面"},
+        {"Interface:", "界面设置"},
+        {"Graphics", "图形"},
+        {"Main Menu", "主菜单"},
+        {"Lock Screen", "锁屏"},
+        {"Status Bar", "状态栏"},
+        {"Main Menu:", "主菜单"},
+        {"Menu style", "菜单样式"},
+        {"Add Item", "添加项目"},
+        {"Remove Item", "移除项目"},
+        {"Lock Screen:", "锁屏设置"},
+        {"Style", "样式"},
+        {"Lock on Boot if PIN set", "PIN开机锁定"},
+        {"Format on 10 Bad PINs", "PIN错10次清空"},
+        {"Allow USB RPC While Locked", "锁屏允许USB RPC"},
+        {"Allow BLE RPC While Locked", "锁屏允许BLE RPC"},
+        {"Allow Poweroff", "允许关机"},
+        {"Show Time", "显示时间"},
+        {"Show Seconds", "显示秒数"},
+        {"Show Date", "显示日期"},
+        {"Show Statusbar", "显示状态栏"},
+        {"Unlock Prompt", "解锁提示"},
+        {"Transparent (see anim)", "透明背景"},
+        {"Skip Sliding Animation", "跳过滑动动画"},
+        {"Status Bar:", "状态栏设置"},
+        {"Battery Icon", "电池图标"},
+        {"Show Clock", "显示时钟"},
+        {"Bar Background", "状态栏背景"},
+        {"SD Card Icon", "SD卡图标"},
+        {"Bluetooth Icon", "蓝牙图标"},
+        {"BLE Beacon Icon", "BLE信标图标"},
+        {"WiFi Icon", "WiFi图标"},
+        {"RPC Session Icon", "RPC会话图标"},
+        {"Graphics:", "图形设置"},
+        {"Asset Pack", "资源包"},
+        {"Anim Speed", "动画速度"},
+        {"Cycle Anims", "轮播动画"},
+        {"Unlock Anims", "解锁动画"},
+        {"Add Menu Item:", "添加菜单项"},
+        {"Remove Item:", "移除菜单项"},
+        {"Main App", "内置应用"},
+        {"External App", "外部应用"},
+        {"Already in menu", "已在菜单中"},
+        {"Default", "默认"},
+        {"List", "列表"},
+        {"Vertical", "竖向"},
+        {"Compact", "紧凑"},
+        {"Bar", "电量条"},
+        {"Inv. %", "反色%"},
+        {"Bar %", "电量条%"},
+        {"ON", "开"},
+        {"OFF", "关"},
+    };
+    if(!source) return "";
+    for(size_t i = 0; i < COUNT_OF(labels); ++i) {
+        if(strcmp(source, labels[i].en) == 0) return labels[i].zh;
+    }
+    return source;
+}
+#define LM_T(source) loader_menu_zh_cn(source)
+#else
+#define LM_T(source) (source)
+#endif
+
 static const char* loader_menu_entries_label(const LoaderMenuApp* app, size_t pos) {
     const LoaderMenuEntry* entry = &app->entries[pos];
     switch(entry->kind) {
     case LoaderMenuEntryKindApplications:
-        return LOADER_APPLICATIONS_NAME;
+        return LM_T(LOADER_APPLICATIONS_NAME);
     case LoaderMenuEntryKindInternal:
-        return FLIPPER_APPS[entry->index].name;
+        return LM_T(FLIPPER_APPS[entry->index].name);
     case LoaderMenuEntryKindExternal:
-        return FLIPPER_EXTERNAL_APPS[entry->index].name;
+        return LM_T(FLIPPER_EXTERNAL_APPS[entry->index].name);
     case LoaderMenuEntryKindInternalAdded:
-        return FLIPPER_SYSTEM_APPS[entry->index].name;
+        return LM_T(FLIPPER_SYSTEM_APPS[entry->index].name);
     case LoaderMenuEntryKindFap:
-        return furi_string_get_cstr(app->faps[entry->index].name);
+        return LM_T(furi_string_get_cstr(app->faps[entry->index].name));
     case LoaderMenuEntryKindSettings:
-        return "Settings";
+        return LM_T("Settings");
     }
     return "";
 }
