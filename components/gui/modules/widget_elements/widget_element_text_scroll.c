@@ -168,8 +168,8 @@ static void widget_element_text_scroll_fill_lines_utf8(Canvas* canvas, WidgetEle
 
 static void widget_element_text_scroll_fill_lines(Canvas* canvas, WidgetElement* element) {
 #ifdef FLIPPER_ZH_CN
-    WidgetElementTextScrollModel* model = element->model;
-    if(canvas_utf8_contains_cjk(furi_string_get_cstr(model->text))) {
+    if(canvas_utf8_contains_cjk(
+           furi_string_get_cstr(((WidgetElementTextScrollModel*)element->model)->text))) {
         widget_element_text_scroll_fill_lines_utf8(canvas, element);
         return;
     }
