@@ -1153,10 +1153,10 @@ static void elements_text_box_utf8(
     size_t total_height_min = 0;
     size_t total_height_default = 0;
     size_t offset = 0;
-    const size_t dots_width = canvas_string_width(canvas, "...");
     bool full_text_processed = false;
 
     canvas_set_font(canvas, FontSecondary);
+    const size_t dots_width = canvas_string_width(canvas, "...");
     lines[0].text = text;
 
     while(!full_text_processed && line_num < ELEMENTS_MAX_LINES_NUM) {
