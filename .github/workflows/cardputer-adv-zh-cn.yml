@@ -1,0 +1,73 @@
+name: Cardputer ADV zh-CN R1
+
+on:
+  push:
+    branches:
+      - feature/cardputer-adv-zh-cn-r1
+  pull_request:
+    branches: [main]
+    paths:
+      - "components/gui/**"
+      - "components/loader/**"
+      - ".github/workflows/cardputer-adv-zh-cn.yml"
+  workflow_dispatch:
+
+jobs:
+  build-cardputer-adv:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Checkout (including submodules)
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install ESP-IDF build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git wget flex bison gperf python3 python3-pip python3-venv \
+            cmake ninja-build ccache libffi-dev libssl-dev dfu-util \
+            libusb-1.0-0 libglib2.0-dev
+
+      - name: Cache ESP-IDF source
+        uses: actions/cache@v4
+        id: idf-cache
+        with:
+          path: ~/esp/esp-idf
+          key: esp-idf-source-v5.4.1
+
+      - name: Checkout ESP-IDF v5.4.1
+        if: steps.idf-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/esp
+          git clone --branch v5.4.1 --depth 1 \
+            https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+
+      - name: Cache ESP-IDF toolchains
+        uses: actions/cache@v4
+        with:
+          path: ~/.espressif
+          key: esp-idf-tools-v5.4.1-cardputer-adv
+
+      - name: Install ESP32-S3 toolchains
+        run: |
+          bash ~/esp/esp-idf/install.sh esp32s3
+
+      - name: Build Cardputer ADV firmware
+        run: |
+          source ~/esp/esp-idf/export.sh
+          python3 winbuild.py check
+          python3 winbuild.py build --board cardputer_adv
+
+      - name: Upload firmware artifacts (for review, not automatic flashing)
+        uses: actions/upload-artifact@v4
+        with:
+          name: cardputer-adv-zh-cn-r1
+          path: |
+            build_cardputer_adv/furi_esp32.bin
+            build_cardputer_adv/bootloader/bootloader.bin
+            build_cardputer_adv/partition_table/partition-table.bin
+            build_cardputer_adv/flash_project_args
+          if-no-files-found: error
+          retention-days: 14
