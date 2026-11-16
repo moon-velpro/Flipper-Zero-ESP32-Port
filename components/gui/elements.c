@@ -525,6 +525,22 @@ void elements_multiline_text(Canvas* canvas, int32_t x, int32_t y, const char* t
     furi_string_free(str);
 }
 
+#ifdef FLIPPER_ZH_CN
+static size_t elements_text_line_width_utf8(Canvas* canvas, const char* text) {
+    size_t width = 0;
+    for(size_t offset = 0; text[offset] != '\0' && text[offset] != '\n';) {
+        uint32_t codepoint = 0;
+        size_t next = canvas_utf8_next(text, offset, &codepoint);
+        if(next <= offset) next = offset + 1;
+        const uint16_t glyph =
+            codepoint <= UINT16_MAX ? (uint16_t)codepoint : (uint16_t)'?';
+        width += canvas_glyph_width(canvas, glyph);
+        offset = next;
+    }
+    return width;
+}
+#endif
+
 void elements_multiline_text_framed(Canvas* canvas, int32_t x, int32_t y, const char* text) {
     furi_check(canvas);
     furi_check(text);
@@ -536,19 +552,16 @@ void elements_multiline_text_framed(Canvas* canvas, int32_t x, int32_t y, const 
     if(canvas_utf8_contains_cjk(text)) {
         if(font_height < 12) font_height = 12;
 
-        FuriString* line = furi_string_alloc();
         const char* start = text;
         for(const char* p = text;; ++p) {
             if(*p == '\n' || *p == '\0') {
-                furi_string_set_strn(line, start, (size_t)(p - start));
-                const size_t width = canvas_string_width(canvas, furi_string_get_cstr(line));
+                const size_t width = elements_text_line_width_utf8(canvas, start);
                 if(width > str_width) str_width = width;
                 if(*p == '\0') break;
                 ++lines;
                 start = p + 1;
             }
         }
-        furi_string_free(line);
     } else
 #endif
     {
