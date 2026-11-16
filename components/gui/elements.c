@@ -4,6 +4,10 @@
 #include <furi_hal.h>
 
 #include "canvas.h"
+
+#ifdef FLIPPER_ZH_CN
+#include "canvas_utf8.h"
+#endif
 #include "icon_i.h"
 #include "icon_animation_i.h"
 
@@ -356,13 +360,6 @@ static size_t
 }
 
 #ifdef FLIPPER_ZH_CN
-static bool elements_contains_multibyte(const char* text) {
-    for(const uint8_t* p = (const uint8_t*)text; *p; ++p) {
-        if(*p >= 0x80) return true;
-    }
-    return false;
-}
-
 /* Return a byte count ending at a complete codepoint, never at a continuation
  * byte. An empty line (newline) legitimately consumes zero text bytes. */
 static size_t elements_cjk_line_bytes(Canvas* canvas, const char* text, size_t available) {
@@ -424,8 +421,6 @@ static void elements_cjk_multiline_aligned(
         y -= (int32_t)(line_height * (lines - 1));
     } else if(vertical == AlignCenter) {
         y -= (int32_t)((line_height * (lines - 1)) / 2);
-    } else if(vertical == AlignTop) {
-        y += 10;
     }
 
     FuriString* line = furi_string_alloc();
@@ -436,7 +431,7 @@ static void elements_cjk_multiline_aligned(
         if(*p == '\n') ++p;
 
         canvas_draw_str_aligned(
-            canvas, x, y, horizontal, AlignBottom, furi_string_get_cstr(line));
+            canvas, x, y, horizontal, vertical, furi_string_get_cstr(line));
         if(y > (int32_t)canvas_height(canvas)) break;
         y += (int32_t)line_height;
     }
@@ -454,7 +449,7 @@ void elements_multiline_text_aligned(
     furi_check(canvas);
     furi_check(text);
 #ifdef FLIPPER_ZH_CN
-    if(elements_contains_multibyte(text)) {
+    if(canvas_utf8_contains_cjk(text)) {
         elements_cjk_multiline_aligned(canvas, x, y, horizontal, vertical, text);
         return;
     }

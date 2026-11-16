@@ -10,12 +10,19 @@ else()
     set(TEXT_INPUT_SRC "modules/text_input.c")
 endif()
 
+# Keep the UTF-8 decoder out of non-localized board builds.
+if(FLIPPER_BOARD STREQUAL "m5stack_cardputer_adv")
+    set(CANVAS_UTF8_SRC "canvas_utf8.c")
+else()
+    set(CANVAS_UTF8_SRC "")
+endif()
 
 idf_component_register(
     SRCS
         "gui.c"
         "momentum_settings.c"
         "canvas.c"
+        ${CANVAS_UTF8_SRC}
         "icon.c"
         "icon_animation.c"
         "elements.c"

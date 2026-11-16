@@ -30,6 +30,15 @@ jobs:
             cmake ninja-build ccache libffi-dev libssl-dev dfu-util \
             libusb-1.0-0 libglib2.0-dev
 
+      - name: Run UTF-8 decoder tests with ASan and UBSan
+        run: |
+          gcc -std=c17 -Wall -Wextra -Werror \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -DFLIPPER_ZH_CN=1 -Icomponents/gui \
+            components/gui/canvas_utf8.c tests/host/canvas_utf8_test.c \
+            -o "$RUNNER_TEMP/canvas_utf8_test"
+          "$RUNNER_TEMP/canvas_utf8_test"
+
       - name: Cache ESP-IDF source
         uses: actions/cache@v4
         id: idf-cache
@@ -70,13 +79,14 @@ jobs:
           python3 winbuild.py build --board cardputer_adv
 
       - name: Build Cardputer ADV firmware
+        id: localized-build
         run: |
           source ~/esp/esp-idf/export.sh
           python3 winbuild.py check
           python3 winbuild.py build --board cardputer_adv
 
       - name: Upload linker diagnostics on failure
-        if: failure()
+        if: always() && (steps.baseline-build.outcome == 'failure' || steps.localized-build.outcome == 'failure')
         uses: actions/upload-artifact@v4
         with:
           name: cardputer-adv-zh-cn-r1-linker-diagnostics
@@ -92,6 +102,70 @@ jobs:
         if: always()
         run: |
           echo "Unlocalized baseline build outcome: ${{ steps.baseline-build.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Localized build outcome: ${{ steps.localized-build.outcome }}" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compare baseline and localized memory maps
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import pathlib
+          import re
+
+          def read_map(path):
+              return pathlib.Path(path).read_text(errors="replace")
+
+          def section(text, name):
+              pattern = rf"^{re.escape(name)}\\s+(0x[0-9a-fA-F]+)\\s+(0x[0-9a-fA-F]+)"
+              match = re.search(pattern, text, re.MULTILINE)
+              if not match:
+                  raise SystemExit(f"Missing map section: {name}")
+              return int(match.group(1), 16), int(match.group(2), 16)
+
+          baseline = read_map("baseline/build_cardputer_adv/furi_esp32.map")
+          localized = read_map("build_cardputer_adv/furi_esp32.map")
+
+          def metrics(text):
+              region_addr, region_size = section(text, "dram0_0_seg")
+              data_addr, data_size = section(text, ".dram0.data")
+              bss_addr, bss_size = section(text, ".dram0.bss")
+              _, flash_text = section(text, ".flash.text")
+              _, flash_rodata = section(text, ".flash.rodata")
+              overflow = max(0, bss_addr + bss_size - region_addr - region_size)
+              return {
+                  "dram_static": data_size + bss_size,
+                  "dram_overflow": overflow,
+                  "flash_text_rodata": flash_text + flash_rodata,
+                  "data_size": data_size,
+                  "bss_size": bss_size,
+              }
+
+          base = metrics(baseline)
+          zh = metrics(localized)
+          print(f"Baseline static DRAM (.data + .bss): {base['dram_static']} bytes")
+          print(f"Localized static DRAM (.data + .bss): {zh['dram_static']} bytes")
+          print(f"Baseline DRAM region overflow: {base['dram_overflow']} bytes")
+          print(f"Localized DRAM region overflow: {zh['dram_overflow']} bytes")
+          print(f"Baseline flash text+rodata: {base['flash_text_rodata']} bytes")
+          print(f"Localized flash text+rodata: {zh['flash_text_rodata']} bytes")
+          print(f"Flash section delta: {zh['flash_text_rodata'] - base['flash_text_rodata']} bytes")
+
+          if zh["dram_static"] > base["dram_static"]:
+              raise SystemExit("Localized build increased static DRAM usage.")
+          if zh["flash_text_rodata"] >= 0x600000:
+              raise SystemExit("Localized flash text+rodata exceeds the 6 MiB app partition.")
+          PY
+
+      - name: Enforce baseline and localized build success
+        if: always()
+        run: |
+          if [ "${{ steps.baseline-build.outcome }}" != "success" ]; then
+            echo "::error::The unlocalized baseline build failed; this comparison is not acceptable."
+            exit 1
+          fi
+          if [ "${{ steps.localized-build.outcome }}" != "success" ]; then
+            echo "::error::The localized Cardputer ADV build failed."
+            exit 1
+          fi
 
       - name: Upload firmware artifacts (for review, not automatic flashing)
         uses: actions/upload-artifact@v4

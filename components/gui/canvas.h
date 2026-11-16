@@ -216,15 +216,6 @@ void canvas_draw_str_aligned(
  */
 uint16_t canvas_string_width(Canvas* canvas, const char* str);
 
- /** Decode a UTF-8 codepoint at a byte offset, returning the next byte offset.
-  * Malformed input is replaced with '?' and consumes one byte.
-  * Unicode outside the BMP is also mapped to '?' for this U8g2 port.
-  */
-size_t canvas_utf8_next(const char* text, size_t offset, uint32_t* codepoint);
-
-/** Start of the preceding UTF-8 codepoint. Offset must be on a boundary. */
-size_t canvas_utf8_prev(const char* text, size_t offset);
-
 /** Get glyph width
  *
  * @param      canvas  Canvas instance
