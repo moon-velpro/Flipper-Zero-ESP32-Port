@@ -502,6 +502,11 @@ void elements_multiline_text(Canvas* canvas, int32_t x, int32_t y, const char* t
     furi_check(text);
 
     size_t font_height = canvas_current_font_height(canvas);
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_contains_cjk(text) && font_height < 12) {
+        font_height = 12;
+    }
+#endif
     FuriString* str;
     str = furi_string_alloc();
     const char* start = text;
@@ -525,19 +530,27 @@ void elements_multiline_text_framed(Canvas* canvas, int32_t x, int32_t y, const 
     furi_check(text);
 
     size_t font_height = canvas_current_font_height(canvas);
-    size_t str_width = canvas_string_width(canvas, text);
-
-    // count \n's
-    size_t lines = 1;
-    const char* t = text;
-    while(*t != '\0') {
-        if(*t == '\n') {
-            lines++;
-            size_t temp_width = canvas_string_width(canvas, t + 1);
-            str_width = temp_width > str_width ? temp_width : str_width;
-        }
-        t++;
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_contains_cjk(text) && font_height < 12) {
+        font_height = 12;
     }
+#endif
+
+    size_t str_width = 0;
+    size_t lines = 1;
+    FuriString* line = furi_string_alloc();
+    const char* start = text;
+    for(const char* p = text;; ++p) {
+        if(*p == '\n' || *p == '\0') {
+            furi_string_set_strn(line, start, (size_t)(p - start));
+            const size_t width = canvas_string_width(canvas, furi_string_get_cstr(line));
+            if(width > str_width) str_width = width;
+            if(*p == '\0') break;
+            ++lines;
+            start = p + 1;
+        }
+    }
+    furi_string_free(line);
 
     canvas_set_color(canvas, ColorWhite);
     canvas_draw_box(canvas, x, y - font_height, str_width + 8, font_height * lines + 4);
