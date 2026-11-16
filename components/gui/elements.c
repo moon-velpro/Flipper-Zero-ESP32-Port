@@ -1110,6 +1110,235 @@ void elements_scrollable_text_line(
 
 #endif /* FLIPPER_ZH_CN */
 
+#ifdef FLIPPER_ZH_CN
+static void elements_text_box_utf8(
+    Canvas* canvas,
+    int32_t x,
+    int32_t y,
+    size_t width,
+    size_t height,
+    Align horizontal,
+    Align vertical,
+    const char* text,
+    bool strip_to_dots) {
+    ElementTextBoxLine lines[ELEMENTS_MAX_LINES_NUM] = {0};
+    bool bold = false;
+    bool mono = false;
+    bool inverse = false;
+    bool inverse_present = false;
+    Font current_font = FontSecondary;
+    Font previous_font = FontSecondary;
+    const CanvasFontParameters* font_params = canvas_get_font_params(canvas, current_font);
+
+    size_t line_leading_min = font_params->leading_min;
+    size_t line_leading_default = font_params->leading_default;
+    size_t line_height = font_params->height;
+    size_t line_descender = font_params->descender;
+    size_t line_num = 0;
+    size_t line_width = 0;
+    size_t line_len = 0;
+    size_t total_height_min = 0;
+    size_t total_height_default = 0;
+    size_t offset = 0;
+    const size_t dots_width = canvas_string_width(canvas, "...");
+    bool full_text_processed = false;
+
+    canvas_set_font(canvas, FontSecondary);
+    lines[0].text = text;
+
+    while(!full_text_processed && line_num < ELEMENTS_MAX_LINES_NUM) {
+        if(previous_font != current_font) {
+            font_params = canvas_get_font_params(canvas, current_font);
+            line_leading_min = MAX(line_leading_min, font_params->leading_min);
+            line_leading_default = MAX(line_leading_default, font_params->leading_default);
+            line_height = MAX(line_height, font_params->height);
+            line_descender = MAX(line_descender, font_params->descender);
+            previous_font = current_font;
+        }
+
+        if(text[offset] == '\e' && text[offset + 1] != '\0') {
+            const char marker = text[offset + 1];
+            offset += 2;
+            line_len += 2;
+            if(marker == ELEMENTS_BOLD_MARKER) {
+                bold = !bold;
+            } else if(marker == ELEMENTS_MONO_MARKER) {
+                mono = !mono;
+            } else if(marker == ELEMENTS_INVERSE_MARKER) {
+                inverse_present = true;
+            }
+
+            current_font = mono ? FontKeyboard : (bold ? FontPrimary : FontSecondary);
+            canvas_set_font(canvas, current_font);
+            continue;
+        }
+
+        if(text[offset] == '\0' || text[offset] == '\n') {
+            if(text[offset] == '\0') {
+                full_text_processed = true;
+            } else {
+                ++offset;
+            }
+        } else {
+            uint32_t codepoint = 0;
+            size_t next_offset = canvas_utf8_next(text, offset, &codepoint);
+            if(next_offset <= offset) next_offset = offset + 1;
+            const uint16_t glyph =
+                codepoint <= UINT16_MAX ? (uint16_t)codepoint : (uint16_t)'?';
+            const size_t glyph_width = canvas_glyph_width(canvas, glyph);
+
+            if(line_width > 0 && line_width + glyph_width > width) {
+                /* Wrap before this glyph; offset remains at a codepoint boundary. */
+            } else {
+                line_width += glyph_width;
+                line_len += next_offset - offset;
+                if(canvas_utf8_is_cjk(codepoint)) {
+                    if(line_leading_min < 12) line_leading_min = 12;
+                    if(line_leading_default < 12) line_leading_default = 12;
+                    if(line_height < 12) line_height = 12;
+                }
+                offset = next_offset;
+                continue;
+            }
+        }
+
+        if(inverse_present) {
+            line_leading_min += 1;
+            line_leading_default += 1;
+            inverse_present = false;
+        }
+
+        if(total_height_min + line_leading_min > height) break;
+
+        lines[line_num].leading_min = line_leading_min;
+        lines[line_num].leading_default = line_leading_default;
+        lines[line_num].height = line_height;
+        lines[line_num].descender = line_descender;
+        lines[line_num].len = line_len;
+
+        if(horizontal == AlignCenter) {
+            const size_t remaining = line_width < width ? width - line_width : 0;
+            lines[line_num].x = x + (int32_t)(remaining / 2);
+        } else if(horizontal == AlignRight) {
+            const size_t remaining = line_width < width ? width - line_width : 0;
+            lines[line_num].x = x + (int32_t)remaining;
+        } else {
+            lines[line_num].x = x;
+        }
+
+        total_height_min += line_leading_min;
+        total_height_default += line_leading_default;
+        lines[line_num].y = total_height_min;
+        ++line_num;
+        if(line_num >= ELEMENTS_MAX_LINES_NUM || full_text_processed) break;
+
+        lines[line_num].text = &text[offset];
+        line_leading_min = font_params->leading_min;
+        line_leading_default = font_params->leading_default;
+        line_height = font_params->height;
+        line_descender = font_params->descender;
+        line_width = 0;
+        line_len = 0;
+    }
+
+    if(line_num == 0) {
+        canvas_set_font(canvas, FontSecondary);
+        return;
+    }
+
+    if(total_height_default < height) {
+        if(vertical == AlignTop) {
+            lines[0].y = y + lines[0].height;
+        } else if(vertical == AlignCenter) {
+            lines[0].y = y + lines[0].height + (height - total_height_default) / 2;
+        } else if(vertical == AlignBottom) {
+            lines[0].y = y + lines[0].height + (height - total_height_default);
+        }
+        for(size_t i = 1; i < line_num; ++i) {
+            lines[i].y = lines[i - 1].y + lines[i - 1].leading_default;
+        }
+    } else {
+        lines[0].y = y + lines[0].height;
+        for(size_t i = 1; i < line_num; ++i) {
+            lines[i].y = lines[i - 1].y + lines[i - 1].leading_min;
+        }
+
+        const size_t free_pixels = height - total_height_min;
+        for(size_t i = 0; i < free_pixels && line_num > 1; ++i) {
+            const size_t start = 1 + (i % (line_num - 1));
+            for(size_t j = start; j < line_num; ++j) {
+                lines[j].y++;
+            }
+        }
+    }
+
+    canvas_set_font(canvas, FontSecondary);
+    bold = false;
+    mono = false;
+    inverse = false;
+
+    for(size_t i = 0; i < line_num; ++i) {
+        size_t byte_offset = 0;
+        while(byte_offset < lines[i].len) {
+            if(lines[i].text[byte_offset] == '\e' && byte_offset + 1 < lines[i].len) {
+                const char marker = lines[i].text[byte_offset + 1];
+                byte_offset += 2;
+                if(marker == ELEMENTS_BOLD_MARKER) {
+                    bold = !bold;
+                } else if(marker == ELEMENTS_MONO_MARKER) {
+                    mono = !mono;
+                } else if(marker == ELEMENTS_INVERSE_MARKER) {
+                    inverse = !inverse;
+                }
+                current_font = mono ? FontKeyboard : (bold ? FontPrimary : FontSecondary);
+                canvas_set_font(canvas, current_font);
+                continue;
+            }
+
+            uint32_t codepoint = 0;
+            size_t next_offset =
+                canvas_utf8_next(lines[i].text, byte_offset, &codepoint);
+            if(next_offset <= byte_offset || next_offset > lines[i].len) {
+                codepoint = '?';
+                next_offset = byte_offset + 1;
+            }
+            if(codepoint == '\n') {
+                byte_offset = next_offset;
+                continue;
+            }
+
+            const uint16_t glyph =
+                codepoint <= UINT16_MAX ? (uint16_t)codepoint : (uint16_t)'?';
+            const size_t glyph_width = canvas_glyph_width(canvas, glyph);
+
+            if(inverse) {
+                canvas_draw_box(
+                    canvas,
+                    lines[i].x - 1,
+                    lines[i].y - lines[i].height - 1,
+                    glyph_width + 1,
+                    lines[i].height + lines[i].descender + 2);
+                canvas_invert_color(canvas);
+                canvas_draw_glyph(canvas, lines[i].x, lines[i].y, glyph);
+                canvas_invert_color(canvas);
+            } else if((i == line_num - 1) && strip_to_dots &&
+                      (lines[i].x + (int32_t)glyph_width + (int32_t)dots_width >
+                       x + (int32_t)width)) {
+                canvas_draw_str(canvas, lines[i].x, lines[i].y, "...");
+                break;
+            } else {
+                canvas_draw_glyph(canvas, lines[i].x, lines[i].y, glyph);
+            }
+
+            lines[i].x += glyph_width;
+            byte_offset = next_offset;
+        }
+    }
+
+    canvas_set_font(canvas, FontSecondary);
+}
+#endif /* FLIPPER_ZH_CN */
+
 void elements_text_box(
     Canvas* canvas,
     int32_t x,
@@ -1121,6 +1350,12 @@ void elements_text_box(
     const char* text,
     bool strip_to_dots) {
     furi_check(canvas);
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_contains_cjk(text)) {
+        elements_text_box_utf8(canvas, x, y, width, height, horizontal, vertical, text, strip_to_dots);
+        return;
+    }
+#endif
 
     ElementTextBoxLine line[ELEMENTS_MAX_LINES_NUM];
     bool bold = false;
