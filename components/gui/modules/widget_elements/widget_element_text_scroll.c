@@ -264,7 +264,15 @@ static void widget_element_text_scroll_draw(Canvas* canvas, WidgetElement* eleme
             if(curr_line < model->scroll_pos_current) continue;
             TextScrollLineArray* line = TextScrollLineArray_ref(it);
             const CanvasFontParameters* params = canvas_get_font_params(canvas, line->font);
-            if(y + params->descender > model->y + model->height) break;
+            size_t line_height = params->height;
+#ifdef FLIPPER_ZH_CN
+            const bool has_cjk =
+                canvas_utf8_contains_cjk(furi_string_get_cstr(line->text));
+            if(has_cjk && line_height < 12) line_height = 12;
+#else
+            const bool has_cjk = false;
+#endif
+            if(y + line_height > model->y + model->height) break;
             canvas_set_font(canvas, line->font);
             if(line->horizontal == AlignLeft) {
                 x = model->x;
@@ -277,9 +285,7 @@ static void widget_element_text_scroll_draw(Canvas* canvas, WidgetElement* eleme
                 canvas, x, y, line->horizontal, AlignTop, furi_string_get_cstr(line->text));
             size_t line_leading = params->leading_default;
 #ifdef FLIPPER_ZH_CN
-            if(canvas_utf8_contains_cjk(furi_string_get_cstr(line->text)) && line_leading < 12) {
-                line_leading = 12;
-            }
+            if(has_cjk && line_leading < 12) line_leading = 12;
 #endif
             y += line_leading;
         }
