@@ -1,7 +1,7 @@
 # =============================================================================
 # M5Stack Cardputer ADV configuration (ESP32-S3FN8: 8 MB flash, NO PSRAM).
-# Modelled on the M5Stick S3 profile but with PSRAM disabled and tighter WiFi/LWIP
-# buffers, since without PSRAM internal RAM is the constraint. NimBLE only.
+# Modelled on the M5Stick S3 profile but with PSRAM disabled. Wi-Fi settings below
+# use the ESP-IDF 5.4 Kconfig symbol names; internal SRAM is the main constraint.
 # =============================================================================
 
 # Flash: 8 MB
@@ -48,22 +48,17 @@ CONFIG_HEAP_TRACING_OFF=y
 CONFIG_ESP_SYSTEM_ABORT_ON_ALLOC_FAILURE=n
 
 # =============================================================================
-# WiFi — no PSRAM, so keep buffers small to conserve internal RAM.
-# =============================================================================
-CONFIG_ESP_WIFI_TASK_PINNED_TO_CORE_1=y
-# Keep Wi-Fi protocol support and buffer counts, but execute optional fast paths
-# from flash. The Cardputer ADV has no PSRAM and shares SRAM between IRAM and DRAM;
-# this returns internal SRAM to the data heap without disabling Wi-Fi features.
-CONFIG_ESP_WIFI_IRAM_OPT=n
-CONFIG_ESP_WIFI_RX_IRAM_OPT=n
-CONFIG_ESP_WIFI_AMPDU_RX_ENABLED=n
-CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=n
-CONFIG_ESP_WIFI_AMSDU_TX_ENABLED=n
-CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=8
-CONFIG_ESP_WIFI_STATIC_TX_BUFFER_NUM=2
-CONFIG_ESP_WIFI_TX_BUFFER_NUM=4
-CONFIG_ESP_WIFI_RX_BUFFER_NUM=4
-CONFIG_ESP_WIFI_TASK_STACK_SIZE=2560
+# Wi-Fi — no PSRAM. IDF 5.4 uses the ESP32_WIFI_ prefix (not ESP_WIFI_).
+# Keep normal RX/TX buffer counts and protocol support; move optional Wi-Fi fast
+# paths back to flash so shared instruction/data SRAM is available to DRAM.
+CONFIG_ESP32_WIFI_IRAM_OPT=n
+CONFIG_ESP32_WIFI_RX_IRAM_OPT=n
+CONFIG_ESP32_WIFI_AMPDU_RX_ENABLED=n
+CONFIG_ESP32_WIFI_AMPDU_TX_ENABLED=n
+CONFIG_ESP32_WIFI_STATIC_RX_BUFFER_NUM=10
+CONFIG_ESP32_WIFI_DYNAMIC_RX_BUFFER_NUM=32
+CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER=y
+CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM=8
 
 # =============================================================================
 # LWIP — trimmed for no-PSRAM.
@@ -77,9 +72,8 @@ CONFIG_LWIP_TCP_RECVMBOX_SIZE=4
 CONFIG_LWIP_TCP_WND_DEFAULT=5760
 
 # =============================================================================
-# Bluetooth — inherited from the base sdkconfig.defaults (Bluedroid), like every
-# other board. Do NOT enable NimBLE here: this port's ble_hid/ble_serial use the
-# Bluedroid API (esp_bt_defs.h), so switching the host stack breaks the build.
+# Bluetooth — inherited from the base sdkconfig.defaults (Bluedroid).
+# Do NOT switch this board to NimBLE: ble_hid/ble_serial use Bluedroid APIs.
 # =============================================================================
 
 # =============================================================================
