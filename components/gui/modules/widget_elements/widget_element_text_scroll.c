@@ -269,8 +269,6 @@ static void widget_element_text_scroll_draw(Canvas* canvas, WidgetElement* eleme
             const bool has_cjk =
                 canvas_utf8_contains_cjk(furi_string_get_cstr(line->text));
             if(has_cjk && line_height < 12) line_height = 12;
-#else
-            const bool has_cjk = false;
 #endif
             if(y + line_height > model->y + model->height) break;
             canvas_set_font(canvas, line->font);
