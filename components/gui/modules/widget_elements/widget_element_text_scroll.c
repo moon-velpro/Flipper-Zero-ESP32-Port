@@ -1,6 +1,9 @@
 #include "widget_element_i.h"
 #include "../../elements.h"
 #include <m-array.h>
+#ifdef FLIPPER_ZH_CN
+#include "../../canvas_utf8.h"
+#endif
 
 #define WIDGET_ELEMENT_TEXT_SCROLL_BAR_OFFSET (4)
 
@@ -57,7 +60,120 @@ void widget_element_text_scroll_add_line(WidgetElement* element, TextScrollLineA
     TextScrollLineArray_push_back(model->line_array, new_line);
 }
 
+#ifdef FLIPPER_ZH_CN
+static void widget_element_text_scroll_add_utf8_line(
+    WidgetElement* element,
+    TextScrollLineArray* line,
+    const CanvasFontParameters* params,
+    size_t* total_height) {
+    WidgetElementTextScrollModel* model = element->model;
+    const bool has_cjk = canvas_utf8_contains_cjk(furi_string_get_cstr(line->text));
+    size_t line_height = params->height;
+    size_t leading = params->leading_default;
+    if(has_cjk) {
+        if(line_height < 12) line_height = 12;
+        if(leading < 12) leading = 12;
+    }
+
+    *total_height += line_height;
+    if(*total_height > model->height && model->scroll_pos_total < UINT16_MAX) {
+        model->scroll_pos_total++;
+    }
+    widget_element_text_scroll_add_line(element, line);
+    *total_height += leading - line_height;
+}
+
+static void widget_element_text_scroll_fill_lines_utf8(Canvas* canvas, WidgetElement* element) {
+    WidgetElementTextScrollModel* model = element->model;
+    TextScrollLineArray line_tmp;
+    line_tmp.text = furi_string_alloc();
+
+    bool all_text_processed = false;
+    bool reached_new_line = true;
+    size_t total_height = 0;
+
+    while(!all_text_processed) {
+        if(reached_new_line) {
+            line_tmp.font = FontSecondary;
+            line_tmp.horizontal = AlignLeft;
+            furi_string_reset(line_tmp.text);
+            while(widget_element_text_scroll_process_ctrl_symbols(&line_tmp, model->text))
+                ;
+        }
+
+        canvas_set_font(canvas, line_tmp.font);
+        const CanvasFontParameters* params = canvas_get_font_params(canvas, line_tmp.font);
+        const char* source = furi_string_get_cstr(model->text);
+        const size_t source_size = furi_string_size(model->text);
+        size_t byte_offset = 0;
+        size_t line_width = 0;
+
+        while(true) {
+            if(byte_offset >= source_size) {
+                furi_string_push_back(line_tmp.text, '\0');
+                widget_element_text_scroll_add_utf8_line(
+                    element, &line_tmp, params, &total_height);
+                all_text_processed = true;
+                break;
+            }
+
+            if(source[byte_offset] == '\n') {
+                furi_string_push_back(line_tmp.text, '\0');
+                widget_element_text_scroll_add_utf8_line(
+                    element, &line_tmp, params, &total_height);
+                furi_string_right(model->text, byte_offset + 1);
+                reached_new_line = true;
+                break;
+            }
+
+            uint32_t codepoint = 0;
+            size_t next_offset = canvas_utf8_next(source, byte_offset, &codepoint);
+            if(next_offset <= byte_offset || next_offset > source_size) {
+                codepoint = '?';
+                next_offset = byte_offset + 1;
+            }
+
+            const uint16_t glyph =
+                codepoint <= UINT16_MAX ? (uint16_t)codepoint : (uint16_t)'?';
+            const size_t glyph_width = canvas_glyph_width(canvas, glyph);
+
+            /* Never split a UTF-8 sequence. If a single glyph is wider than the
+             * available line, place it alone so formatting always makes progress. */
+            if(line_width + glyph_width > model->width &&
+               furi_string_size(line_tmp.text) > 0) {
+                furi_string_push_back(line_tmp.text, '\0');
+                widget_element_text_scroll_add_utf8_line(
+                    element, &line_tmp, params, &total_height);
+                furi_string_right(model->text, byte_offset);
+                furi_string_reset(line_tmp.text);
+                reached_new_line = false;
+                break;
+            }
+
+            if((uint8_t)source[byte_offset] >= 0x80 && codepoint == '?') {
+                furi_string_push_back(line_tmp.text, '?');
+            } else {
+                for(size_t i = byte_offset; i < next_offset; ++i) {
+                    furi_string_push_back(line_tmp.text, source[i]);
+                }
+            }
+            line_width += glyph_width;
+            byte_offset = next_offset;
+        }
+    }
+
+    furi_string_free(line_tmp.text);
+}
+#endif
+
 static void widget_element_text_scroll_fill_lines(Canvas* canvas, WidgetElement* element) {
+#ifdef FLIPPER_ZH_CN
+    WidgetElementTextScrollModel* model = element->model;
+    if(canvas_utf8_contains_cjk(furi_string_get_cstr(model->text))) {
+        widget_element_text_scroll_fill_lines_utf8(canvas, element);
+        return;
+    }
+#endif
     WidgetElementTextScrollModel* model = element->model;
     TextScrollLineArray line_tmp;
     bool all_text_processed = false;
@@ -159,7 +275,13 @@ static void widget_element_text_scroll_draw(Canvas* canvas, WidgetElement* eleme
             }
             canvas_draw_str_aligned(
                 canvas, x, y, line->horizontal, AlignTop, furi_string_get_cstr(line->text));
-            y += params->leading_default;
+            size_t line_leading = params->leading_default;
+#ifdef FLIPPER_ZH_CN
+            if(canvas_utf8_contains_cjk(furi_string_get_cstr(line->text)) && line_leading < 12) {
+                line_leading = 12;
+            }
+#endif
+            y += line_leading;
         }
         // Draw scroll bar
         if(model->scroll_pos_total > 1) {
@@ -234,10 +356,13 @@ WidgetElement* widget_element_text_scroll_create(
     WidgetElementTextScrollModel* model = malloc(sizeof(WidgetElementTextScrollModel));
     model->x = x;
     model->y = y;
-    model->width = width - WIDGET_ELEMENT_TEXT_SCROLL_BAR_OFFSET;
+    model->width = width > WIDGET_ELEMENT_TEXT_SCROLL_BAR_OFFSET ?
+                       width - WIDGET_ELEMENT_TEXT_SCROLL_BAR_OFFSET :
+                       width;
     model->height = height;
     model->scroll_pos_current = 0;
     model->scroll_pos_total = 1;
+    model->text_formatted = false;
     TextScrollLineArray_init(model->line_array);
     model->text = furi_string_alloc_set(text);
 
