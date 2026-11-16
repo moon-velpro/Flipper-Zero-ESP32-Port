@@ -237,20 +237,20 @@ static void canvas_draw_utf8_mixed(Canvas* canvas, int32_t x, int32_t y, const c
         if(next <= offset) break;
 
         uint16_t glyph = codepoint <= UINT16_MAX ? (uint16_t)codepoint : '?';
-        size_t advance = canvas_glyph_width(canvas, glyph);
+        int8_t advance = canvas_glyph_advance(canvas, glyph);
         canvas_draw_unicode_glyph(canvas, x, y, glyph);
         switch(direction) {
         case 0:
-            x += (int32_t)advance;
+            x += advance;
             break;
         case 1:
-            y += (int32_t)advance;
+            y += advance;
             break;
         case 2:
-            x -= (int32_t)advance;
+            x -= advance;
             break;
         case 3:
-            y -= (int32_t)advance;
+            y -= advance;
             break;
         default:
             break;
@@ -338,7 +338,7 @@ uint16_t canvas_string_width(Canvas* canvas, const char* str) {
     if(canvas_utf8_contains_cjk(str)) {
         int32_t width = 0;
         int8_t last_advance = 0;
-        uint8_t last_glyph_width = 0;
+        int8_t last_glyph_width = 0;
         int8_t last_glyph_x_offset = 0;
         bool has_last_glyph = false;
 
@@ -372,7 +372,8 @@ uint16_t canvas_string_width(Canvas* canvas, const char* str) {
 size_t canvas_glyph_width(Canvas* canvas, uint16_t symbol) {
     furi_check(canvas);
 #ifdef FLIPPER_ZH_CN
-    return (size_t)canvas_glyph_advance(canvas, symbol);
+    int8_t advance = canvas_glyph_advance(canvas, symbol);
+    return advance > 0 ? (size_t)advance : 0;
 #else
     return u8g2_GetGlyphWidth(&canvas->fb, symbol);
 #endif
