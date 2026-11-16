@@ -469,7 +469,6 @@ static bool loader_menu_is_default_external(const char* appid) {
 }
 
 static void loader_menu_build_menu(LoaderMenuApp* app) {
-    menu_reset(app->primary_menu);
     app->entries_count = 0;
 
     if(!menu_custom_is_hidden(&app->custom, LOADER_APPLICATIONS_NAME)) {
@@ -649,9 +648,11 @@ static void loader_menu_main_menu_style_changed(VariableItem* item) {
     variable_item_set_current_value_text(item, LM_T(loader_menu_menu_style_text[index]));
     menu_set_style((MenuStyle)index);
 
+#ifdef FLIPPER_ZH_CN
     LoaderMenuApp* app = variable_item_get_context(item);
     furi_assert(app);
     loader_menu_refresh_primary(app, true);
+#endif
 }
 
 static void loader_menu_main_menu_enter(void* context, uint32_t index) {
