@@ -379,7 +379,6 @@ static const Icon* loader_menu_entries_icon(const LoaderMenuApp* app, size_t pos
 }
 
 static void loader_menu_refresh_primary(LoaderMenuApp* app, bool focus_settings) {
-    menu_reset(app->primary_menu);
     for(size_t i = 0; i < app->entries_count; ++i) {
         menu_add_item(
             app->primary_menu,
@@ -469,6 +468,8 @@ static bool loader_menu_is_default_external(const char* appid) {
 }
 
 static void loader_menu_build_menu(LoaderMenuApp* app) {
+    /* Drop old menu entries before updating the backing FAP name/icon slots. */
+    menu_reset(app->primary_menu);
     app->entries_count = 0;
 
     if(!menu_custom_is_hidden(&app->custom, LOADER_APPLICATIONS_NAME)) {
@@ -651,6 +652,7 @@ static void loader_menu_main_menu_style_changed(VariableItem* item) {
 #ifdef FLIPPER_ZH_CN
     LoaderMenuApp* app = variable_item_get_context(item);
     furi_assert(app);
+    menu_reset(app->primary_menu);
     loader_menu_refresh_primary(app, true);
 #endif
 }
