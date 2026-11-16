@@ -188,11 +188,143 @@ void canvas_set_custom_u8g2_font(Canvas* canvas, const uint8_t* font) {
     u8g2_SetFont(&canvas->fb, font);
 }
 
+/*
+ * UTF-8 traversal operates on byte offsets, never inside a multibyte
+ * code point. The current U8g2 font engine accepts BMP glyphs (uint16_t).
+ */
+size_t canvas_utf8_next(const char* text, size_t offset, uint32_t* codepoint) {
+    if(!text || !codepoint) return offset;
+
+    const uint8_t* bytes = (const uint8_t*)text + offset;
+    uint8_t first = bytes[0];
+
+    if(first == '\0') {
+        *codepoint = 0;
+        return offset;
+    }
+
+    if(first < 0x80) {
+        *codepoint = first;
+        return offset + 1;
+    }
+
+    if(first >= 0xC2 && first <= 0xDF && (bytes[1] & 0xC0) == 0x80) {
+        *codepoint = ((uint32_t)(first & 0x1F) << 6) | (bytes[1] & 0x3F);
+        return offset + 2;
+    }
+
+    if(first >= 0xE0 && first <= 0xEF && bytes[1] != '\0' && bytes[2] != '\0' &&
+       (bytes[1] & 0xC0) == 0x80 && (bytes[2] & 0xC0) == 0x80) {
+        uint32_t result = ((uint32_t)(first & 0x0F) << 12) |
+                          ((uint32_t)(bytes[1] & 0x3F) << 6) |
+                          (bytes[2] & 0x3F);
+        if(result >= 0x800 && (result < 0xD800 || result > 0xDFFF)) {
+            *codepoint = result;
+            return offset + 3;
+        }
+    }
+
+    if(first >= 0xF0 && first <= 0xF4 && bytes[1] != '\0' && bytes[2] != '\0' &&
+       bytes[3] != '\0' && (bytes[1] & 0xC0) == 0x80 &&
+       (bytes[2] & 0xC0) == 0x80 && (bytes[3] & 0xC0) == 0x80) {
+        uint32_t result = ((uint32_t)(first & 0x07) << 18) |
+                          ((uint32_t)(bytes[1] & 0x3F) << 12) |
+                          ((uint32_t)(bytes[2] & 0x3F) << 6) |
+                          (bytes[3] & 0x3F);
+        if(result >= 0x10000 && result <= 0x10FFFF) {
+            *codepoint = '?'; /* This font backend cannot draw non-BMP glyphs. */
+            return offset + 4;
+        }
+    }
+
+    *codepoint = '?';
+    return offset + 1;
+}
+
+size_t canvas_utf8_prev(const char* text, size_t offset) {
+    if(!text || offset == 0) return 0;
+    size_t start = offset - 1;
+    while(start > 0 && (((const uint8_t*)text)[start] & 0xC0) == 0x80) {
+        start--;
+    }
+    return start;
+}
+
+#ifdef FLIPPER_ZH_CN
+/* Restrict fallback to CJK ranges, leaving other scripts/icons untouched. */
+static bool canvas_is_cjk(uint16_t ch) {
+    return (ch >= 0x2E80 && ch <= 0x9FFF) || (ch >= 0xF900 && ch <= 0xFAFF) ||
+           (ch >= 0xFF01 && ch <= 0xFF60);
+}
+
+static bool canvas_has_multibyte(const char* text) {
+    for(const uint8_t* p = (const uint8_t*)text; *p; ++p) {
+        if(*p >= 0x80) return true;
+    }
+    return false;
+}
+
+static void canvas_draw_unicode_glyph(Canvas* canvas, int32_t x, int32_t y, uint16_t ch) {
+    if(canvas_is_cjk(ch)) {
+        const uint8_t* prior_font = canvas->fb.font;
+        u8g2_SetFont(&canvas->fb, u8g2_font_wqy12_t_gb2312);
+        if(u8g2_IsGlyph(&canvas->fb, ch)) {
+            /* Existing logical UI has 11-16 px rows: keep CJK within a row. */
+            int32_t baseline_shift = canvas->fb.font_decode.dir == 0 ? 2 : 0;
+            u8g2_DrawGlyph(&canvas->fb, x, y + baseline_shift, ch);
+            u8g2_SetFont(&canvas->fb, prior_font);
+            return;
+        }
+        u8g2_SetFont(&canvas->fb, prior_font);
+        ch = '?';
+    }
+    u8g2_DrawGlyph(&canvas->fb, x, y, ch);
+}
+
+static void canvas_draw_utf8_mixed(Canvas* canvas, int32_t x, int32_t y, const char* text) {
+    size_t offset = 0;
+    uint8_t direction = canvas->fb.font_decode.dir;
+
+    while(text[offset] != '\0') {
+        uint32_t codepoint = 0;
+        size_t next = canvas_utf8_next(text, offset, &codepoint);
+        if(next <= offset) break;
+
+        uint16_t glyph = codepoint <= UINT16_MAX ? (uint16_t)codepoint : '?';
+        size_t advance = canvas_glyph_width(canvas, glyph);
+        canvas_draw_unicode_glyph(canvas, x, y, glyph);
+        switch(direction) {
+        case 0:
+            x += (int32_t)advance;
+            break;
+        case 1:
+            y += (int32_t)advance;
+            break;
+        case 2:
+            x -= (int32_t)advance;
+            break;
+        case 3:
+            y -= (int32_t)advance;
+            break;
+        default:
+            break;
+        }
+        offset = next;
+    }
+}
+#endif /* FLIPPER_ZH_CN */
+
 void canvas_draw_str(Canvas* canvas, int32_t x, int32_t y, const char* str) {
     furi_check(canvas);
     if(!str) return;
     x += canvas->offset_x;
     y += canvas->offset_y;
+#ifdef FLIPPER_ZH_CN
+    if(canvas_has_multibyte(str)) {
+        canvas_draw_utf8_mixed(canvas, x, y, str);
+        return;
+    }
+#endif
     u8g2_DrawUTF8(&canvas->fb, x, y, str);
 }
 
@@ -212,10 +344,10 @@ void canvas_draw_str_aligned(
     case AlignLeft:
         break;
     case AlignRight:
-        x -= u8g2_GetUTF8Width(&canvas->fb, str);
+        x -= canvas_string_width(canvas, str);
         break;
     case AlignCenter:
-        x -= (u8g2_GetUTF8Width(&canvas->fb, str) / 2);
+        x -= (canvas_string_width(canvas, str) / 2);
         break;
     default:
         furi_crash();
@@ -236,18 +368,53 @@ void canvas_draw_str_aligned(
         break;
     }
 
+#ifdef FLIPPER_ZH_CN
+    if(canvas_has_multibyte(str)) {
+        canvas_draw_utf8_mixed(canvas, x, y, str);
+        return;
+    }
+#endif
     u8g2_DrawUTF8(&canvas->fb, x, y, str);
 }
 
 uint16_t canvas_string_width(Canvas* canvas, const char* str) {
     furi_check(canvas);
     if(!str) return 0;
+#ifdef FLIPPER_ZH_CN
+    if(canvas_has_multibyte(str)) {
+        uint32_t width = 0;
+        for(size_t offset = 0; str[offset] != '\0';) {
+            uint32_t codepoint = 0;
+            size_t next = canvas_utf8_next(str, offset, &codepoint);
+            if(next <= offset) break;
+            uint16_t glyph = codepoint <= UINT16_MAX ? (uint16_t)codepoint : '?';
+            width += canvas_glyph_width(canvas, glyph);
+            if(width > UINT16_MAX) return UINT16_MAX;
+            offset = next;
+        }
+        return (uint16_t)width;
+    }
+#endif
     return u8g2_GetUTF8Width(&canvas->fb, str);
 }
 
 size_t canvas_glyph_width(Canvas* canvas, uint16_t symbol) {
     furi_check(canvas);
-    return u8g2_GetGlyphWidth(&canvas->fb, symbol);
+#ifdef FLIPPER_ZH_CN
+    if(canvas_is_cjk(symbol)) {
+        const uint8_t* prior_font = canvas->fb.font;
+        u8g2_SetFont(&canvas->fb, u8g2_font_wqy12_t_gb2312);
+        if(u8g2_IsGlyph(&canvas->fb, symbol)) {
+            int8_t pixels = u8g2_GetGlyphWidth(&canvas->fb, symbol);
+            u8g2_SetFont(&canvas->fb, prior_font);
+            return pixels > 0 ? (size_t)pixels : 0;
+        }
+        u8g2_SetFont(&canvas->fb, prior_font);
+        symbol = '?';
+    }
+#endif
+    int8_t pixels = u8g2_GetGlyphWidth(&canvas->fb, symbol);
+    return pixels > 0 ? (size_t)pixels : 0;
 }
 
 void canvas_draw_bitmap(
@@ -566,7 +733,11 @@ void canvas_draw_glyph(Canvas* canvas, int32_t x, int32_t y, uint16_t ch) {
     furi_check(canvas);
     x += canvas->offset_x;
     y += canvas->offset_y;
+#ifdef FLIPPER_ZH_CN
+    canvas_draw_unicode_glyph(canvas, x, y, ch);
+#else
     u8g2_DrawGlyph(&canvas->fb, x, y, ch);
+#endif
 }
 
 void canvas_draw_icon_bitmap(
