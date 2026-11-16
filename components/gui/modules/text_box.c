@@ -175,13 +175,12 @@ static void text_box_seek_end_of_prev_line(TextBoxModel* model) {
 
 static void text_box_seek_prev_paragraph(TextBoxModel* model) {
     while(!text_box_start_of_text_reached(model)) {
-        size_t previous =
-            text_box_previous_codepoint_offset(model->text, model->text_offset);
-        if(model->text[previous] == '\n') {
-            model->text_offset = previous + 1;
+        if(model->text[model->text_offset] == '\n') {
+            model->text_offset++;
             break;
         }
-        model->text_offset = previous;
+        model->text_offset =
+            text_box_previous_codepoint_offset(model->text, model->text_offset);
     }
 }
 
