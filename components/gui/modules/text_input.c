@@ -1,5 +1,8 @@
 #include "text_input.h"
 #include "../elements.h"
+#ifdef FLIPPER_ZH_CN
+#include "../canvas_utf8.h"
+#endif
 #include <assets_icons.h>
 #include <furi.h>
 #include <boards/board.h>
@@ -242,6 +245,29 @@ static void switch_keyboard(TextInputModel* model) {
     }
 }
 
+static size_t text_input_utf8_previous(const char* text, size_t offset) {
+    const size_t length = strlen(text);
+    if(offset > length) offset = length;
+#ifdef FLIPPER_ZH_CN
+    return canvas_utf8_prev(text, offset);
+#else
+    return offset > 0 ? offset - 1 : 0;
+#endif
+}
+
+static size_t text_input_utf8_next(const char* text, size_t offset) {
+    const size_t length = strlen(text);
+    if(offset >= length) return length;
+#ifdef FLIPPER_ZH_CN
+    uint32_t codepoint = 0;
+    size_t next = canvas_utf8_next(text, offset, &codepoint);
+    if(next <= offset || next > length) next = offset + 1;
+    return next;
+#else
+    return offset + 1;
+#endif
+}
+
 static bool char_is_lowercase(char letter) {
     return letter >= 0x61 && letter <= 0x7A;
 }
@@ -261,15 +287,16 @@ static void text_input_backspace_cb(TextInputModel* model) {
         model->text_buffer[0] = 0;
         model->cursor_pos = 0;
     } else if(model->cursor_pos > 0) {
+        const size_t previous = text_input_utf8_previous(model->text_buffer, model->cursor_pos);
         char* move = model->text_buffer + model->cursor_pos;
-        memmove(move - 1, move, strlen(move) + 1);
-        model->cursor_pos--;
+        memmove(model->text_buffer + previous, move, strlen(move) + 1);
+        model->cursor_pos = previous;
     }
 }
 
 static void text_input_view_draw_callback(Canvas* canvas, void* _model) {
     TextInputModel* model = _model;
-    uint8_t text_length = model->text_buffer ? strlen(model->text_buffer) : 0;
+    size_t text_length = model->text_buffer ? strlen(model->text_buffer) : 0;
     uint8_t needed_string_width = canvas_width(canvas) - 8;
     uint8_t start_pos = 4;
 
@@ -282,7 +309,8 @@ static void text_input_view_draw_callback(Canvas* canvas, void* _model) {
     canvas_draw_str(canvas, 2, 8, model->header);
     elements_slightly_rounded_frame(canvas, 1, 12, 126, 15);
 
-    char buf[text_length + 1];
+    /* Reserve room for the cursor marker and the trailing ellipsis. */
+    char buf[text_length + 5];
     if(model->text_buffer) {
         strlcpy(buf, model->text_buffer, sizeof(buf));
     } else {
@@ -304,11 +332,13 @@ static void text_input_view_draw_callback(Canvas* canvas, void* _model) {
         canvas_draw_str(canvas, start_pos, 22, "...");
         start_pos += 6;
         needed_string_width -= 8;
-        for(uint32_t off = 0;
-            strlen(str) && canvas_string_width(canvas, str) > needed_string_width &&
-            off < cursor_pos;
-            off++) {
-            str++;
+        size_t offset = 0;
+        while(strlen(str) && canvas_string_width(canvas, str) > needed_string_width &&
+              offset < cursor_pos) {
+            const size_t next = text_input_utf8_next(buf, offset);
+            if(next <= offset || next > cursor_pos) break;
+            offset = next;
+            str = buf + offset;
         }
     }
 
@@ -316,7 +346,8 @@ static void text_input_view_draw_callback(Canvas* canvas, void* _model) {
         needed_string_width -= 4;
         size_t len = strlen(str);
         while(len && canvas_string_width(canvas, str) > needed_string_width) {
-            str[len--] = '\0';
+            len = text_input_utf8_previous(str, len);
+            str[len] = '\0';
         }
         strcat(str, "...");
     }
@@ -396,7 +427,7 @@ static void text_input_handle_up(TextInput* text_input, TextInputModel* model) {
     if(model->cursor_select) {
         model->clear_default_text = false;
         if(model->cursor_pos > 0) {
-            model->cursor_pos = CLAMP(model->cursor_pos - 1, strlen(model->text_buffer), 0u);
+            model->cursor_pos = text_input_utf8_previous(model->text_buffer, model->cursor_pos);
         }
     } else if(model->selected_column > 0) {
         model->selected_column--;
@@ -410,7 +441,7 @@ static void text_input_handle_down(TextInput* text_input, TextInputModel* model)
     UNUSED(text_input);
     if(model->cursor_select) {
         model->clear_default_text = false;
-        model->cursor_pos = CLAMP(model->cursor_pos + 1, strlen(model->text_buffer), 0u);
+        model->cursor_pos = text_input_utf8_next(model->text_buffer, model->cursor_pos);
     } else if(model->selected_column < get_row_size(model, model->selected_row) - 1) {
         model->selected_column++;
     } else {
