@@ -162,3 +162,13 @@ E gpio: gpio_set_level(238): GPIO output gpio_num error
 - 图形刷新改为 8 行 DMA stripe 后的速度、键盘 I2C 共享、SD 卡与 BLE/Wi-Fi 共存、长时间稳定性均尚未实测。
 
 该轮修复目前只有远端源文件提交/核对，**没有针对新 HEAD 的成功 ESP-IDF 固件构建产物**，不要把先前旧 ZIP 用于复验。
+
+## 第三轮断言专项审计（2026-11-18）
+
+核对了 `components/furi/core/thread.c`、`components/furi_hal/furi_hal_speaker.c`、`components/furi_hal/furi_hal_nfc.c`、`components/furi_hal/furi_hal_i2c.c`、`main/app_main.c` 的实际代码。
+
+- **新增明确诊断：** `furi_thread_alloc()` 在申请内部 RAM 的 `FuriThread/StaticTask_t` 失败时，旧代码直接调用 `furi_thread_init_common(NULL)`；现在在解引用前输出 `[TASK_TCB_OOM]`、所需字节数、剩余内部 RAM 与最大连续块，再以明确原因停止。服务专用 TCB 分配失败也使用同一诊断，而不再只有 `furi_check(thread)`。此修改不是内存不足的自动恢复机制。
+- **保留严格检查：** 线程状态/锁拥有者/中断上下文等不变量不能通过全局移除 `furi_check` 掩盖。
+- **未解决：** `furi_hal_speaker_init()` 和 `furi_hal_speaker_acquire()` 使用 `ESP_ERROR_CHECK` 处理 I2S 资源分配/启用失败。若无 PSRAM 导致 I2S DMA 或驱动资源不足，仍可能中止。改为安全降级需要同时明确后续 API 的空句柄行为和所有调用方，不能只删断言。
+- **未解决：** NFC I2C 的旧驱动安装返回非 OK 时直接当成“已安装”并复用，无法区分 `ESP_ERR_INVALID_STATE` 与实际失败；应收紧错误分类和初始化顺序。
+- **尚无新 HEAD 编译结果或实机回归数据。** 任何进一步修改均需重新生成同一版本的完整烧录三件套。
