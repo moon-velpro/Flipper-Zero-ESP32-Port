@@ -178,6 +178,18 @@ static int32_t speaker_writer_thread(void* context) {
 
 /* ---- Public API ---- */
 
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+/* No-PSRAM Cardputer ADV: keep the idle speaker worker's 4 KiB stack free
+ * until sound or GDO mirroring is actually requested. */
+static void speaker_start_worker_if_needed(void) {
+    if(speaker_thread) return;
+    speaker_thread = furi_thread_alloc_ex(
+        "SpeakerWorker", SPEAKER_THREAD_STACK, speaker_writer_thread, NULL);
+    speaker_thread_run = true;
+    furi_thread_start(speaker_thread);
+}
+#endif
+
 void furi_hal_speaker_init(void) {
     furi_assert(speaker_mutex == NULL);
     speaker_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
@@ -211,10 +223,14 @@ void furi_hal_speaker_init(void) {
     };
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(i2s_tx_handle, &std_cfg));
 
-    /* Start the writer thread (it idles until speaker_mode != Idle) */
-    speaker_thread = furi_thread_alloc_ex("SpeakerWorker", SPEAKER_THREAD_STACK, speaker_writer_thread, NULL);
+    /* On Cardputer ADV the writer is deferred until the first actual tone
+     * or mirror request. Other boards retain their original startup path. */
+#if !defined(BOARD_HAS_TCA8418) || !BOARD_HAS_TCA8418
+    speaker_thread = furi_thread_alloc_ex(
+        "SpeakerWorker", SPEAKER_THREAD_STACK, speaker_writer_thread, NULL);
     speaker_thread_run = true;
     furi_thread_start(speaker_thread);
+#endif
 
     FURI_LOG_I(TAG, "Init OK (I2S, BCLK=%d WS=%d DOUT=%d)",
                BOARD_PIN_SPEAKER_BCLK, BOARD_PIN_SPEAKER_WCLK, BOARD_PIN_SPEAKER_DOUT);
@@ -223,11 +239,13 @@ void furi_hal_speaker_init(void) {
 void furi_hal_speaker_deinit(void) {
     furi_check(speaker_mutex != NULL);
 
-    /* Stop writer thread */
+    /* Stop writer thread if it was started (ADV starts it lazily). */
     speaker_thread_run = false;
-    furi_thread_join(speaker_thread);
-    furi_thread_free(speaker_thread);
-    speaker_thread = NULL;
+    if(speaker_thread) {
+        furi_thread_join(speaker_thread);
+        furi_thread_free(speaker_thread);
+        speaker_thread = NULL;
+    }
 
     /* Tear down I2S */
     if(i2s_channel_enabled) {
@@ -282,6 +300,9 @@ void furi_hal_speaker_start(float frequency, float volume) {
         return;
     }
 
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    speaker_start_worker_if_needed();
+#endif
     speaker_frequency = frequency;
     speaker_volume = volume;
     speaker_buffer_dirty = true;
@@ -298,6 +319,9 @@ void furi_hal_speaker_start_gdo_mirror(const GpioPin* gdo_pin, float volume) {
         return;
     }
 
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    speaker_start_worker_if_needed();
+#endif
     speaker_mirror_pin = (gpio_num_t)gdo_pin->pin;
     speaker_mirror_volume = volume;
     speaker_mode = SpeakerModeGdoMirror;
