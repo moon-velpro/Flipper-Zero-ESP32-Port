@@ -396,7 +396,18 @@ void text_box_set_text(TextBox* text_box, const char* text) {
 void text_box_set_font(TextBox* text_box, TextBoxFont font) {
     furi_check(text_box);
 
-    with_view_model(text_box->view, TextBoxModel * model, { model->font = font; }, true);
+    with_view_model(
+        text_box->view,
+        TextBoxModel * model,
+        {
+            if(model->font != font) {
+                model->font = font;
+                /* Font metrics affect wrapping, line offsets and scroll range.
+                 * Rebuild them on the next draw instead of reusing stale layout. */
+                model->formatted = false;
+            }
+        },
+        true);
 }
 
 void text_box_set_focus(TextBox* text_box, TextBoxFocus focus) {
