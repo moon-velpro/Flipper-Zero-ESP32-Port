@@ -1,0 +1,27 @@
+name: Cardputer-Adv minimal UTF-8 checks
+
+on:
+  push:
+    branches:
+      - feature/cardputer-adv-zh-cn-minimal
+  pull_request:
+    paths:
+      - 'components/gui/canvas_utf8.*'
+      - 'tests/host/canvas_utf8_test.c'
+      - '.github/workflows/cardputer-adv-minimal-utf8.yml'
+  workflow_dispatch:
+
+jobs:
+  utf8-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run UTF-8 decoder tests with sanitizers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -Icomponents/gui components/gui/canvas_utf8.c tests/host/canvas_utf8_test.c \
+            -o /tmp/cardputer_utf8_test
+          /tmp/cardputer_utf8_test
