@@ -81,11 +81,14 @@ static uint16_t bg_color;
 #define LCD_PARAM_BITS BOARD_LCD_PARAM_BITS
 
 /* Stripe-based rendering: render & DMA-send N lines at a time.
- * Reduces DMA buffer from full-frame (~110KB) to a small stripe. Larger stripes
- * mean fewer CASET/RASET/RAMWR round trips per frame; 32 lines keeps the buffer
- * at ~20KB of internal DMA RAM while cutting the transaction count from 20 to 5
- * for the Flipper UI area. */
+ * The no-PSRAM Cardputer ADV has only internal SRAM for display DMA, services
+ * and task stacks. Keep an 8-line stripe (3,840 B instead of 15,360 B);
+ * other boards retain the existing 32-line fast path. */
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+#define STRIPE_HEIGHT 8
+#else
 #define STRIPE_HEIGHT 32
+#endif
 
 static esp_lcd_panel_handle_t panel_handle = NULL;
 static esp_lcd_panel_io_handle_t io_handle = NULL;
