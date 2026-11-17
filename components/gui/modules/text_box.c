@@ -413,5 +413,15 @@ void text_box_set_font(TextBox* text_box, TextBoxFont font) {
 void text_box_set_focus(TextBox* text_box, TextBoxFocus focus) {
     furi_check(text_box);
 
-    with_view_model(text_box->view, TextBoxModel * model, { model->focus = focus; }, true);
+    with_view_model(
+        text_box->view,
+        TextBoxModel * model,
+        {
+            if(model->focus != focus) {
+                model->focus = focus;
+                /* Switching between start/end focus changes the initial page. */
+                model->formatted = false;
+            }
+        },
+        true);
 }
