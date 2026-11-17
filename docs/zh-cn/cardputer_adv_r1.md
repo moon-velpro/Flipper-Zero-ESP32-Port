@@ -62,3 +62,62 @@ Cardputer ADV 的 ESP32-S3FN8 没有 PSRAM，内部 SRAM 需要在 IRAM 与 DRAM
 ## CI
 
 `.github/workflows/cardputer-adv-zh-cn.yml` 使用 ESP-IDF **v5.4.1** 编译 Cardputer-Adv 固件，通过后保存构建产物，仅用于审核，不会自动烧录设备。
+
+## R1 构建验证记录（2026-11-17）
+
+提交 `d261184bda99c82ae15a2363c659c1f0945dc7ba` 已完成 Cardputer ADV 基线/汉化固件构建，两个版本静态 DRAM 均为 231484 B，链接区溢出均为 0 B。汉化增加 214792 B Flash `.text + .rodata`，应用镜像 3369872 B，位于 6291456 B 应用分区内。固件 Artifact 为 GitHub Actions `43961303713` 中的 `cardputer-adv-zh-cn-r1`。其他四种板型构建、Native Tools 和 ProtoPirate 测试同时全部通过。
+
+之后的 `056bcc5` 增加 `TextBox` 字体变化时重建分页的修复；**它不属于上面这个已构建固件**，须使用含该提交的新构建产物验证，不可将旧 BIN 当作最新提交的实机验收结果。
+
+## 实机验收操作与回滚（只对 Cardputer-Adv）
+
+测试前确认设备确为 **ESP32-S3FN8 / 8 MB Flash / 无 PSRAM**，串口号以设备管理器显示为准。使用 Windows PowerShell 和 ESP-IDF v5.4.1 对应环境。请确保没有串口监视器正在占用端口。
+
+**1. 保存整片 Flash 备份：**
+
+```powershell
+$Port = "COMx"  # 替换为实际端口
+python -m esptool --chip esp32s3 --port $Port flash_id
+python -m esptool --chip esp32s3 --port $Port read_flash 0x0 0x800000 cardputer_adv_backup_8mb.bin
+```
+
+确认备份文件完整，大小应为 `8388608` 字节。备份可能包含 Wi-Fi 凭据、密钥和用户数据，应本地妥善保存，不要上传公共仓库。**备份失败时停止测试，不要刷写或擦除。**
+
+**2. 仅刷写已通过 CI 的整套同版本产物：**
+
+将 GitHub Actions 固件压缩包解压到一个目录，从该目录执行：
+
+```powershell
+python -m esptool --chip esp32s3 --port $Port --baud 460800 write_flash --flash_mode dio --flash_freq 80m --flash_size 8MB 0x0 bootloader/bootloader.bin 0x8000 partition_table/partition-table.bin 0x10000 furi_esp32.bin
+```
+
+如串口或写入异常，检查 USB 数据线、供电与串口占用；不要在验证过程中自行调整 Flash 分区地址、启用 PSRAM 或跨板烧录。
+
+**3. 实机功能验收表：**
+
+| 项目 | 通过标准 |
+| --- | --- |
+| 上电与重启 | 冷启动、软重启和连续 20 次进入菜单均无黑屏、复位循环或异常日志 |
+| 中文主菜单 | “应用”“设置”等可读，焦点/选中框不遮挡，启动目标正确 |
+| 中英混排 | 长标签连续滚动多个周期，不能出现半个 UTF-8 字符、乱码或越界 |
+| 变更菜单样式 | List/Wii/DSi/PS4/Vertical 正常；C64/Compact/MNTM 按设计保留英文以防文字重叠 |
+| 设置菜单 | 中文标题、选项、开关状态清楚；更改后保存，重启仍正确 |
+| TextBox 与输入 | 中文分页上下滚动、切换字体后的分页重算、光标左右移动、退格和边界截断正确 |
+| 文件与 SD 卡 | 挂载、浏览、打开和拔卡/重插后菜单正常，存储路径未受翻译影响 |
+| Wi-Fi | 扫描、连接、长时间收发和抓包正常，记录吞吐/掉包/延迟，与未汉化基线比较 |
+| BLE 与共存 | BLE 扫描、连接/断开、重新连接，Wi-Fi 同时运行无死锁或明显退化 |
+| 运行稳定性 | 持续使用至少 30 分钟，无崩溃、内存耗尽或持续增长的泄漏迹象 |
+
+记录测试固件的 Git SHA、BIN SHA-256、串口启动日志、出错时的复现步骤及界面照片。任何未通过项应标记失败，不要以“编译通过”代替实机结论。
+
+**4. 回滚：**
+
+如果测试异常，停止继续操作并保留现场日志。设备进入下载模式后，可用备份恢复原先 Flash：
+
+```powershell
+python -m esptool --chip esp32s3 --port $Port --baud 460800 write_flash --flash_mode dio --flash_freq 80m --flash_size 8MB 0x0 cardputer_adv_backup_8mb.bin
+```
+
+回滚镜像必须是**同一设备**测试前取得的完整备份。不要把别人的 8 MB 备份写入自己的设备。
+
+**发布判定：** 最新提交 CI 全绿且完成上述实机验收后，再考虑将 Draft PR 转为 Ready。当前仍为开发试点，未宣布量产或正式发布。
