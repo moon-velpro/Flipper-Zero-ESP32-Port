@@ -146,3 +146,19 @@ E gpio: gpio_set_level(238): GPIO output gpio_num error
 - ADV 独立分区表在原有 6 MiB factory app 与 u2fkeys 后添加 128 KiB `data,coredump`；CI 对照版同步使用该分区表。
 
 **测试状态：** 旧 ZIP（提交 `d261184`）实机可加载但循环崩溃，禁止再推荐它作为稳定固件；新修复尚无成功编译和实机复测记录。新烧录包须来自后续成功 CI 的同一提交的 bootloader / partition table / app 三件套。新分区表不可和旧包混刷；不需要额外执行全片擦除。
+
+## 第二轮静态审计：启动后仍存在的输入与硬件风险
+
+在完整实机启动日志所揭示的启动失败之外，代码审计还发现：`InputTypeText` 把 ASCII 字符值放在 `InputEvent.key`，但原 `gui_input()`、`view_port_map_input()` 和 `view_dispatcher_handle_input()` 均把它当成最多 6 个方向键的枚举值。旧代码不仅会把没有 Press/Release 配对的字符丢掉，还可能通过非法位移或按 ASCII 值索引方向映射表触发断言。原来键盘驱动还把 `Del` 当作 `Back`，使文本框无法正常退格。
+
+已提交代码修复：独立文字事件在 GUI、ViewPort、ViewDispatcher 中不再进入方向键位图与方向映射；`TextInput` 消费可打印 ASCII、退格字符并允许实体 Enter 提交；实体 Esc 作为 Back，Del 作为退格。**必须在实机上验证字母、数字、Shift、删除、光标、提交和 Wi-Fi 密码输入。**
+
+板级另有 `BOARD_PIN_IR_RX=GPIO1` 与 Grove `I2C_SCL=GPIO1` 的引脚冲突，而 ADV 自带的是红外发射，不是接收器。已按 ADV 的实际硬件关闭不存在的 IR RX，并在接收初始化函数中跳过申请 RMT 接收通道，保留红外发射功能和其他板型行为。
+
+仍待验证：
+- 后续 Wi-Fi/BLE 服务动态分配能否在完全没有 PSRAM 的机型上持续工作（原固件在启动阶段已耗尽内部栈内存，释放启动缓冲并不意味着无线协议栈有足够内存）。
+- `furi_hal_speaker.c` 目前只初始化 I2S，而 ADV 的 ES8311 音频芯片需要通过 I2C 控制。未在该实现中发现对 ES8311 控制寄存器的初始化，可能导致扬声器无声；须单独实现并实测。
+- `applications/services/desktop/desktop.c` 的 Mesh 结果路径直接用 `MALLOC_CAP_SPIRAM` 分配 1,400 B，在无 PSRAM 的 ADV 上会返回 NULL，导致相关捕获结果被直接丢弃。这是低优先级但真实的功能不兼容项，尚未修复。
+- 图形刷新改为 8 行 DMA stripe 后的速度、键盘 I2C 共享、SD 卡与 BLE/Wi-Fi 共存、长时间稳定性均尚未实测。
+
+该轮修复目前只有远端源文件提交/核对，**没有针对新 HEAD 的成功 ESP-IDF 固件构建产物**，不要把先前旧 ZIP 用于复验。
