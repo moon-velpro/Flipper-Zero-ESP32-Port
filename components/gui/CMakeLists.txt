@@ -11,9 +11,18 @@ else()
 endif()
 
 
+# Only compile the standalone UTF-8 helper on Cardputer-Adv.
+# No rendering, task, driver, or partition changes in this stage.
+if(FLIPPER_BOARD STREQUAL "m5stack_cardputer_adv")
+    set(CARDPUTER_UTF8_SRC "canvas_utf8.c")
+else()
+    set(CARDPUTER_UTF8_SRC "")
+endif()
+
 idf_component_register(
     SRCS
         "gui.c"
+        ${CARDPUTER_UTF8_SRC}
         "momentum_settings.c"
         "canvas.c"
         "icon.c"
