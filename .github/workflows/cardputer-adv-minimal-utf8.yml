@@ -25,3 +25,38 @@ jobs:
             -Icomponents/gui components/gui/canvas_utf8.c tests/host/canvas_utf8_test.c \
             -o /tmp/cardputer_utf8_test
           /tmp/cardputer_utf8_test
+
+  build-original-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install ESP-IDF dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 libglib2.0-dev
+      - name: Install ESP-IDF v5.4.1
+        run: |
+          mkdir -p ~/esp
+          git clone --branch v5.4.1 --depth 1 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+          bash ~/esp/esp-idf/install.sh esp32s3
+      - name: Build Cardputer-Adv with untouched original board configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          source ~/esp/esp-idf/export.sh
+          python3 winbuild.py check
+          python3 winbuild.py build --board cardputer_adv
+      - name: Upload build evidence (not a flash recommendation)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cardputer-adv-minimal-build-evidence
+          path: |
+            build_cardputer_adv/sdkconfig
+            build_cardputer_adv/furi_esp32.map
+            build_cardputer_adv/furi_esp32.bin
+          if-no-files-found: warn
+          retention-days: 7
