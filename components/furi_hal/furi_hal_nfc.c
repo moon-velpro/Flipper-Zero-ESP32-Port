@@ -200,22 +200,21 @@ static esp_err_t pn532_i2c_init(void) {
         .master.clk_speed = 100000,
     };
 
-    /* Configure pins before installing the driver. A successful install
-     * must never leave an unconfigured bus behind. */
-    esp_err_t err = i2c_param_config(BOARD_NFC_I2C_PORT, &conf);
-    if(err != ESP_OK) {
-        FURI_LOG_E(TAG, "NFC I2C pin configuration failed: %s", esp_err_to_name(err));
-        return err;
-    }
-
-    err = i2c_driver_install(BOARD_NFC_I2C_PORT, conf.mode, 0, 0, 0);
+    /* Preserve an existing bus configuration: other devices may already be
+     * using this port. Only configure pins when we own the fresh install. */
+    esp_err_t err = i2c_driver_install(BOARD_NFC_I2C_PORT, conf.mode, 0, 0, 0);
     if(err == ESP_ERR_INVALID_STATE) {
-        /* Existing driver, typically owned by the board's shared I2C HAL. */
         FURI_LOG_I(TAG, "I2C bus %d already installed", BOARD_NFC_I2C_PORT);
         return ESP_OK;
     }
     if(err != ESP_OK) {
         FURI_LOG_E(TAG, "NFC I2C driver install failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    err = i2c_param_config(BOARD_NFC_I2C_PORT, &conf);
+    if(err != ESP_OK) {
+        FURI_LOG_E(TAG, "NFC I2C pin configuration failed: %s", esp_err_to_name(err));
+        i2c_driver_delete(BOARD_NFC_I2C_PORT);
     }
     return err;
 }
