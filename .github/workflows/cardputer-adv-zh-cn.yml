@@ -77,7 +77,9 @@ jobs:
           submodules: recursive
 
       - name: Apply the board-only memory profile to the unlocalized baseline
-        run: cp sdkconfig.defaults.m5stack_cardputer_adv baseline/sdkconfig.defaults.m5stack_cardputer_adv
+        run: |
+          cp sdkconfig.defaults.m5stack_cardputer_adv baseline/sdkconfig.defaults.m5stack_cardputer_adv
+          cp partitions_cardputer_adv.csv baseline/partitions_cardputer_adv.csv
 
       - name: Build unlocalized Cardputer ADV baseline
         id: baseline-build
