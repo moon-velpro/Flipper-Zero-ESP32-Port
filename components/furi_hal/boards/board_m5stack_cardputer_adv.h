@@ -177,7 +177,7 @@
 #define BOARD_PIN_BATTERY_ADC   10
 
 #define BOARD_PIN_IR_TX         44
-#define BOARD_PIN_IR_RX         1
+#define BOARD_PIN_IR_RX         UINT16_MAX  /* No onboard IR receiver; GPIO1 is Grove I2C SCL */
 
 #define BOARD_PIN_MIC_DATA      46
 #define BOARD_PIN_MIC_CLK       43
@@ -223,7 +223,7 @@
 #define BOARD_HAS_SPEAKER       1
 #define BOARD_HAS_IR            1
 #define BOARD_HAS_IR_TX         1
-#define BOARD_HAS_IR_RX         1
+#define BOARD_HAS_IR_RX         0
 #define FURI_HAL_SPEAKER_GPIO   BOARD_PIN_SPEAKER_DOUT
 
 #define BOARD_HAS_IBUTTON       0
