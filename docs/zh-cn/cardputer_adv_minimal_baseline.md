@@ -31,3 +31,16 @@
 ## 当前验证状态
 
 仅完成 GitHub 源码差异清点与分支隔离。**尚未编译、烧录或证明新的中文固件可以启动。** 不把旧实验分支的硬件修复当成中文补丁。
+
+## 阶段 1：独立 UTF-8 解码器（已提交源码，未验证）
+
+已从旧分支单独提取 `components/gui/canvas_utf8.c/.h` 与 `tests/host/canvas_utf8_test.c`，并去掉解码器的 `FLIPPER_ZH_CN` 包围宏，保证源文件可独立供宿主编译。**没有修改 CMakeLists.txt**，因此该解码器目前不会进入设备固件，也没有改变原版任何启动路径或运行内存占用。
+
+在仓库根目录的宿主测试命令：
+
+```sh
+cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Icomponents/gui components/gui/canvas_utf8.c tests/host/canvas_utf8_test.c -o /tmp/cardputer_utf8_test
+/tmp/cardputer_utf8_test
+```
+
+以上是**待执行**命令，并非已获得的测试结果。下一步应先运行宿主测试，再最小化接入 Cardputer-Adv GUI 构建，并比较与原版相同 sdkconfig 下的镜像/内存；在获得构建证据之前不移植字体或翻译。
