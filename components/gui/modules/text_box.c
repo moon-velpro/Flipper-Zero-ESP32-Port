@@ -1,6 +1,9 @@
 #include "text_box.h"
 #include "../canvas.h"
 #include "../elements.h"
+#ifdef FLIPPER_ZH_CN
+#include "../canvas_utf8.h"
+#endif
 #include <furi.h>
 #include <stdint.h>
 
@@ -109,6 +112,34 @@ static bool text_box_start_of_text_reached(TextBoxModel* model) {
     return model->text_offset == 0;
 }
 
+static size_t text_box_previous_codepoint_offset(const char* text, size_t offset) {
+#ifdef FLIPPER_ZH_CN
+    return canvas_utf8_prev(text, offset);
+#else
+    UNUSED(text);
+    return offset > 0 ? offset - 1 : 0;
+#endif
+}
+
+static size_t text_box_next_codepoint(
+    Canvas* canvas,
+    const char* text,
+    size_t offset,
+    size_t* glyph_width) {
+#ifdef FLIPPER_ZH_CN
+    uint32_t codepoint = 0;
+    size_t next = canvas_utf8_next(text, offset, &codepoint);
+    if(next <= offset) next = offset + 1;
+    const uint16_t glyph =
+        codepoint <= UINT16_MAX ? (uint16_t)codepoint : (uint16_t)'?';
+    *glyph_width = canvas_glyph_width(canvas, glyph);
+    return next;
+#else
+    *glyph_width = canvas_glyph_width(canvas, (uint8_t)text[offset]);
+    return offset + 1;
+#endif
+}
+
 static void text_box_seek_next_line(Canvas* canvas, TextBoxModel* model) {
     size_t line_width = 0;
 
@@ -118,12 +149,14 @@ static void text_box_seek_next_line(Canvas* canvas, TextBoxModel* model) {
             model->text_offset++;
             break;
         } else {
-            size_t glyph_width = canvas_glyph_width(canvas, symb);
-            if(line_width + glyph_width > TEXT_BOX_TEXT_WIDTH) {
+            size_t glyph_width = 0;
+            size_t next_offset =
+                text_box_next_codepoint(canvas, model->text, model->text_offset, &glyph_width);
+            if(line_width > 0 && line_width + glyph_width > TEXT_BOX_TEXT_WIDTH) {
                 break;
             }
             line_width += glyph_width;
-            model->text_offset++;
+            model->text_offset = next_offset;
         }
     }
 }
@@ -131,10 +164,11 @@ static void text_box_seek_next_line(Canvas* canvas, TextBoxModel* model) {
 static void text_box_seek_end_of_prev_line(TextBoxModel* model) {
     do {
         if(text_box_start_of_text_reached(model)) break;
-        model->text_offset--;
+        model->text_offset = text_box_previous_codepoint_offset(model->text, model->text_offset);
         if(text_box_start_of_text_reached(model)) break;
         if(model->text[model->text_offset] == '\n') {
-            model->text_offset--;
+            model->text_offset =
+                text_box_previous_codepoint_offset(model->text, model->text_offset);
         }
     } while(false);
 }
@@ -145,7 +179,8 @@ static void text_box_seek_prev_paragraph(TextBoxModel* model) {
             model->text_offset++;
             break;
         }
-        model->text_offset--;
+        model->text_offset =
+            text_box_previous_codepoint_offset(model->text, model->text_offset);
     }
 }
 
@@ -193,7 +228,7 @@ static void text_box_update_screen_text(Canvas* canvas, TextBoxModel* model) {
             &model->text[current_line_text_offset],
             next_line_text_offset - current_line_text_offset);
         size_t str_len = furi_string_size(model->text_line);
-        if(furi_string_get_char(model->text_line, str_len - 1) != '\n') {
+        if(str_len == 0 || furi_string_get_char(model->text_line, str_len - 1) != '\n') {
             furi_string_push_back(model->text_line, '\n');
         }
         furi_string_cat(model->text_on_screen, model->text_line);
@@ -218,7 +253,13 @@ static void text_box_prepare_model(Canvas* canvas, TextBoxModel* model) {
     model->scroll_num = 0;
     model->scroll_pos = 0;
     model->line_offset = 0;
-    model->lines_on_screen = TEXT_BOX_TEXT_HEIGHT / canvas_current_font_height(canvas);
+    size_t line_height = canvas_current_font_height(canvas);
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_contains_cjk(model->text) && line_height < 12) {
+        line_height = 12;
+    }
+#endif
+    model->lines_on_screen = TEXT_BOX_TEXT_HEIGHT / line_height;
 
     // Cache text offset to quick final text offset update if TextBoxFocusEnd is set
     int32_t window_offset[TEXT_BOX_MAX_LINES_PER_SCREEN] = {};
@@ -355,11 +396,32 @@ void text_box_set_text(TextBox* text_box, const char* text) {
 void text_box_set_font(TextBox* text_box, TextBoxFont font) {
     furi_check(text_box);
 
-    with_view_model(text_box->view, TextBoxModel * model, { model->font = font; }, true);
+    with_view_model(
+        text_box->view,
+        TextBoxModel * model,
+        {
+            if(model->font != font) {
+                model->font = font;
+                /* Font metrics affect wrapping, line offsets and scroll range.
+                 * Rebuild them on the next draw instead of reusing stale layout. */
+                model->formatted = false;
+            }
+        },
+        true);
 }
 
 void text_box_set_focus(TextBox* text_box, TextBoxFocus focus) {
     furi_check(text_box);
 
-    with_view_model(text_box->view, TextBoxModel * model, { model->focus = focus; }, true);
+    with_view_model(
+        text_box->view,
+        TextBoxModel * model,
+        {
+            if(model->focus != focus) {
+                model->focus = focus;
+                /* Switching between start/end focus changes the initial page. */
+                model->formatted = false;
+            }
+        },
+        true);
 }

@@ -572,12 +572,7 @@ void target_input_poll(
             if (nav_states[j].tca_id == key_id) { nav = &nav_states[j]; break; }
         }
 
-        /* Special case: Both Esc (1) and Del (65) can act as Back */
-        if (!nav && key_id == 1) {
-             for (int j = 0; j < 6; j++) {
-                if (nav_states[j].furi_key == InputKeyBack) { nav = &nav_states[j]; break; }
-            }
-        }
+        /* Esc is Back; Delete is an ASCII backspace text event. */
 
         /* NOTE: W/A/S/D/L/R and Space used to be remapped to nav here ("intuitive
          * WASD nav"), but that made them un-typeable — the user couldn't enter

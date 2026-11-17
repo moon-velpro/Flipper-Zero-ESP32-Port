@@ -10,12 +10,19 @@ else()
     set(TEXT_INPUT_SRC "modules/text_input.c")
 endif()
 
+# Keep the UTF-8 decoder out of non-localized board builds.
+if(FLIPPER_BOARD STREQUAL "m5stack_cardputer_adv")
+    set(CANVAS_UTF8_SRC "canvas_utf8.c")
+else()
+    set(CANVAS_UTF8_SRC "")
+endif()
 
 idf_component_register(
     SRCS
         "gui.c"
         "momentum_settings.c"
         "canvas.c"
+        ${CANVAS_UTF8_SRC}
         "icon.c"
         "icon_animation.c"
         "elements.c"
@@ -58,3 +65,9 @@ idf_component_register(
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE ESP32_HAS_STORAGE=1)
+
+# The first localization pilot targets only the Cardputer ADV. Other board
+# builds keep their original fonts and user-facing strings.
+if(FLIPPER_BOARD STREQUAL "m5stack_cardputer_adv")
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE FLIPPER_ZH_CN=1)
+endif()

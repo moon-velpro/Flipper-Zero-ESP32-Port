@@ -59,6 +59,10 @@ typedef enum {
 static FuriMutex* speaker_mutex = NULL;
 static i2s_chan_handle_t i2s_tx_handle = NULL;
 static bool i2s_channel_enabled = false;
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+/* A failed optional audio peripheral must not abort the whole Cardputer ADV. */
+static bool speaker_i2s_ready = false;
+#endif
 
 /* Active mode — read by writer thread, written by API callers under ownership. */
 static volatile SpeakerMode speaker_mode = SpeakerModeIdle;
@@ -178,9 +182,28 @@ static int32_t speaker_writer_thread(void* context) {
 
 /* ---- Public API ---- */
 
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+/* No-PSRAM Cardputer ADV: keep the idle speaker worker's 4 KiB stack free
+ * until sound or GDO mirroring is actually requested. */
+static void speaker_start_worker_if_needed(void) {
+    if(speaker_thread) return;
+    speaker_thread = furi_thread_alloc_ex(
+        "SpeakerWorker", SPEAKER_THREAD_STACK, speaker_writer_thread, NULL);
+    speaker_thread_run = true;
+    furi_thread_start(speaker_thread);
+}
+#endif
+
 void furi_hal_speaker_init(void) {
     furi_assert(speaker_mutex == NULL);
     speaker_mutex = furi_mutex_alloc(FuriMutexTypeNormal);
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    speaker_i2s_ready = false;
+    if(!speaker_mutex) {
+        FURI_LOG_E(TAG, "Audio disabled: speaker mutex allocation failed");
+        return;
+    }
+#endif
 
     /* Release pin 40 from LCD RST usage — the display driver only pulses it
      * during init and does not need it afterwards. */
@@ -191,7 +214,15 @@ void furi_hal_speaker_init(void) {
     chan_cfg.dma_desc_num = SPEAKER_DMA_DESC_NUM;
     chan_cfg.dma_frame_num = SPEAKER_DMA_FRAME_NUM;
     chan_cfg.auto_clear = true; /* send silence when no data */
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    esp_err_t i2s_err = i2s_new_channel(&chan_cfg, &i2s_tx_handle, NULL);
+    if(i2s_err != ESP_OK) {
+        FURI_LOG_E(TAG, "Audio disabled: I2S allocation failed: %s", esp_err_to_name(i2s_err));
+        return;
+    }
+#else
     ESP_ERROR_CHECK(i2s_new_channel(&chan_cfg, &i2s_tx_handle, NULL));
+#endif
 
     i2s_std_config_t std_cfg = {
         .clk_cfg = I2S_STD_CLK_DEFAULT_CONFIG(SPEAKER_SAMPLE_RATE),
@@ -209,12 +240,27 @@ void furi_hal_speaker_init(void) {
             },
         },
     };
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    i2s_err = i2s_channel_init_std_mode(i2s_tx_handle, &std_cfg);
+    if(i2s_err != ESP_OK) {
+        FURI_LOG_E(TAG, "Audio disabled: I2S configuration failed: %s", esp_err_to_name(i2s_err));
+        i2s_del_channel(i2s_tx_handle);
+        i2s_tx_handle = NULL;
+        return;
+    }
+    speaker_i2s_ready = true;
+#else
     ESP_ERROR_CHECK(i2s_channel_init_std_mode(i2s_tx_handle, &std_cfg));
+#endif
 
-    /* Start the writer thread (it idles until speaker_mode != Idle) */
-    speaker_thread = furi_thread_alloc_ex("SpeakerWorker", SPEAKER_THREAD_STACK, speaker_writer_thread, NULL);
+    /* On Cardputer ADV the writer is deferred until the first actual tone
+     * or mirror request. Other boards retain their original startup path. */
+#if !defined(BOARD_HAS_TCA8418) || !BOARD_HAS_TCA8418
+    speaker_thread = furi_thread_alloc_ex(
+        "SpeakerWorker", SPEAKER_THREAD_STACK, speaker_writer_thread, NULL);
     speaker_thread_run = true;
     furi_thread_start(speaker_thread);
+#endif
 
     FURI_LOG_I(TAG, "Init OK (I2S, BCLK=%d WS=%d DOUT=%d)",
                BOARD_PIN_SPEAKER_BCLK, BOARD_PIN_SPEAKER_WCLK, BOARD_PIN_SPEAKER_DOUT);
@@ -223,19 +269,24 @@ void furi_hal_speaker_init(void) {
 void furi_hal_speaker_deinit(void) {
     furi_check(speaker_mutex != NULL);
 
-    /* Stop writer thread */
+    /* Stop writer thread if it was started (ADV starts it lazily). */
     speaker_thread_run = false;
-    furi_thread_join(speaker_thread);
-    furi_thread_free(speaker_thread);
-    speaker_thread = NULL;
+    if(speaker_thread) {
+        furi_thread_join(speaker_thread);
+        furi_thread_free(speaker_thread);
+        speaker_thread = NULL;
+    }
 
     /* Tear down I2S */
     if(i2s_channel_enabled) {
         i2s_channel_disable(i2s_tx_handle);
         i2s_channel_enabled = false;
     }
-    i2s_del_channel(i2s_tx_handle);
+    if(i2s_tx_handle) i2s_del_channel(i2s_tx_handle);
     i2s_tx_handle = NULL;
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    speaker_i2s_ready = false;
+#endif
 
     /* Free buffer */
     if(wave_buffer) {
@@ -249,11 +300,22 @@ void furi_hal_speaker_deinit(void) {
 
 bool furi_hal_speaker_acquire(uint32_t timeout) {
     furi_check(!FURI_IS_IRQ_MODE());
-
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    if(!speaker_mutex || !speaker_i2s_ready || !i2s_tx_handle) return false;
+#endif
     if(furi_mutex_acquire(speaker_mutex, timeout) == FuriStatusOk) {
         /* Enable I2S channel on first acquire */
         if(!i2s_channel_enabled) {
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+            esp_err_t err = i2s_channel_enable(i2s_tx_handle);
+            if(err != ESP_OK) {
+                FURI_LOG_E(TAG, "Audio unavailable: I2S enable failed: %s", esp_err_to_name(err));
+                furi_mutex_release(speaker_mutex);
+                return false;
+            }
+#else
             ESP_ERROR_CHECK(i2s_channel_enable(i2s_tx_handle));
+#endif
             i2s_channel_enabled = true;
         }
         return true;
@@ -270,6 +332,9 @@ void furi_hal_speaker_release(void) {
 }
 
 bool furi_hal_speaker_is_mine(void) {
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    if(!speaker_mutex || !speaker_i2s_ready) return false;
+#endif
     return (FURI_IS_IRQ_MODE()) ||
            (furi_mutex_get_owner(speaker_mutex) == furi_thread_get_current_id());
 }
@@ -282,6 +347,9 @@ void furi_hal_speaker_start(float frequency, float volume) {
         return;
     }
 
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    speaker_start_worker_if_needed();
+#endif
     speaker_frequency = frequency;
     speaker_volume = volume;
     speaker_buffer_dirty = true;
@@ -298,6 +366,9 @@ void furi_hal_speaker_start_gdo_mirror(const GpioPin* gdo_pin, float volume) {
         return;
     }
 
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418
+    speaker_start_worker_if_needed();
+#endif
     speaker_mirror_pin = (gpio_num_t)gdo_pin->pin;
     speaker_mirror_volume = volume;
     speaker_mode = SpeakerModeGdoMirror;

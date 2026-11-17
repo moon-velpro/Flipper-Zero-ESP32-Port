@@ -6,6 +6,7 @@
 #include <esp_log.h>
 #include <esp_rom_uart.h>
 #include <esp_system.h>
+#include <esp_heap_caps.h>
 
 static const char* TAG = "Main";
 
@@ -160,6 +161,13 @@ void app_main(void) {
     log_registry_snapshot();
 
     for(size_t i = 0; i < FLIPPER_SERVICES_COUNT; i++) {
+        /* Logs survive even when a later service runs out of a contiguous
+         * internal-RAM block for its static FreeRTOS stack. */
+        ESP_LOGI(
+            TAG, "Starting service %s: free internal=%u largest block=%u",
+            FLIPPER_SERVICES[i].appid ? FLIPPER_SERVICES[i].appid : "?",
+            (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+            (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
         FuriThread* thread = furi_thread_alloc_service(
             FLIPPER_SERVICES[i].name,
             FLIPPER_SERVICES[i].stack_size,

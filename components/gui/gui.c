@@ -285,20 +285,27 @@ static void gui_input(Gui* gui, InputEvent* input_event) {
     furi_assert(gui);
     furi_assert(input_event);
 
-    // Check input complementarity
-    uint8_t key_bit = (1 << input_event->key);
-    if(input_event->type == InputTypeRelease) {
-        gui->ongoing_input &= ~key_bit;
-    } else if(input_event->type == InputTypePress) {
-        gui->ongoing_input |= key_bit;
-    } else if(!(gui->ongoing_input & key_bit)) {
-        FURI_LOG_D(
-            TAG,
-            "non-complementary input, discarding key: %s type: %s, sequence: %p",
-            input_get_key_name(input_event->key),
-            input_get_type_name(input_event->type),
-            (void*)input_event->sequence);
-        return;
+    /* InputTypeText carries an ASCII value in InputEvent.key, not an
+     * InputKey enum value and not a Press/Release pair. Do not bit-shift by
+     * an ASCII code or require a preceding key press. */
+    const bool text_event = input_event->type == InputTypeText;
+    uint8_t key_bit = 0;
+    if(!text_event) {
+        if((unsigned)input_event->key >= InputKeyMAX) return;
+        key_bit = (uint8_t)(1U << (unsigned)input_event->key);
+        if(input_event->type == InputTypeRelease) {
+            gui->ongoing_input &= (uint8_t)~key_bit;
+        } else if(input_event->type == InputTypePress) {
+            gui->ongoing_input |= key_bit;
+        } else if(!(gui->ongoing_input & key_bit)) {
+            FURI_LOG_D(
+                TAG,
+                "non-complementary input, discarding key: %s type: %s, sequence: %p",
+                input_get_key_name(input_event->key),
+                input_get_type_name(input_event->type),
+                (void*)input_event->sequence);
+            return;
+        }
     }
 
     gui_lock(gui);
@@ -322,7 +329,9 @@ static void gui_input(Gui* gui, InputEvent* input_event) {
             gui->ongoing_input_view_port = view_port;
         }
 
-        if(view_port && view_port == gui->ongoing_input_view_port) {
+        if(view_port && (text_event || view_port == gui->ongoing_input_view_port)) {
+            /* Keyboard text goes to the currently focused view port, even
+             * when there is no active navigation-key press. */
             view_port_input(view_port, input_event);
         } else if(gui->ongoing_input_view_port && input_event->type == InputTypeRelease) {
             FURI_LOG_D(

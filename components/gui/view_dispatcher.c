@@ -128,11 +128,14 @@ void view_dispatcher_run(ViewDispatcher* view_dispatcher) {
     InputEvent input;
     while(view_dispatcher->ongoing_input) {
         furi_message_queue_get(view_dispatcher->input_queue, &input, FuriWaitForever);
-        uint8_t key_bit = (1 << input.key);
+        /* Text events encode a character in key; they have no release
+         * and must not be used as an index into the navigation-key mask. */
+        if(input.type == InputTypeText || (unsigned)input.key >= InputKeyMAX) continue;
+        uint8_t key_bit = (uint8_t)(1U << (unsigned)input.key);
         if(input.type == InputTypePress) {
             view_dispatcher->ongoing_input |= key_bit;
         } else if(input.type == InputTypeRelease) {
-            view_dispatcher->ongoing_input &= ~key_bit;
+            view_dispatcher->ongoing_input &= (uint8_t)~key_bit;
         }
     }
 }
@@ -252,8 +255,17 @@ void view_dispatcher_input_callback(InputEvent* event, void* context) {
 }
 
 void view_dispatcher_handle_input(ViewDispatcher* view_dispatcher, InputEvent* event) {
-    // Check input complementarity
-    uint8_t key_bit = (1 << event->key);
+    /* Text events are standalone ASCII keystrokes, not navigational
+     * Press/Release pairs; deliver directly to the focused view. */
+    if(event->type == InputTypeText) {
+        if(view_dispatcher->current_view) {
+            (void)view_input(view_dispatcher->current_view, event);
+        }
+        return;
+    }
+    if((unsigned)event->key >= InputKeyMAX) return;
+    // Check navigation input complementarity
+    uint8_t key_bit = (uint8_t)(1U << (unsigned)event->key);
     if(event->type == InputTypePress) {
         view_dispatcher->ongoing_input |= key_bit;
     } else if(event->type == InputTypeRelease) {

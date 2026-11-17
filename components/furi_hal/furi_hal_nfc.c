@@ -200,21 +200,28 @@ static esp_err_t pn532_i2c_init(void) {
         .master.clk_speed = 100000,
     };
 
+    /* Preserve an existing bus configuration: other devices may already be
+     * using this port. Only configure pins when we own the fresh install. */
     esp_err_t err = i2c_driver_install(BOARD_NFC_I2C_PORT, conf.mode, 0, 0, 0);
-    if(err == ESP_OK) {
-        /* Fresh install — configure pins */
-        i2c_param_config(BOARD_NFC_I2C_PORT, &conf);
-    } else {
-        /* Already installed (by power or touch) — reuse as-is */
-        FURI_LOG_I(TAG, "I2C bus %d already initialized, reusing", BOARD_NFC_I2C_PORT);
-        err = ESP_OK;
+    if(err == ESP_ERR_INVALID_STATE) {
+        FURI_LOG_I(TAG, "I2C bus %d already installed", BOARD_NFC_I2C_PORT);
+        return ESP_OK;
+    }
+    if(err != ESP_OK) {
+        FURI_LOG_E(TAG, "NFC I2C driver install failed: %s", esp_err_to_name(err));
+        return err;
+    }
+    err = i2c_param_config(BOARD_NFC_I2C_PORT, &conf);
+    if(err != ESP_OK) {
+        FURI_LOG_E(TAG, "NFC I2C pin configuration failed: %s", esp_err_to_name(err));
+        i2c_driver_delete(BOARD_NFC_I2C_PORT);
     }
     return err;
 }
 
 /** Wait for PN532 ready: IRQ pin LOW or I2C RDY byte polling */
 static bool pn532_wait_ready(uint32_t timeout_ms) {
-#ifdef BOARD_PIN_NFC_IRQ
+#if defined(BOARD_PIN_NFC_IRQ) && (BOARD_PIN_NFC_IRQ != UINT16_MAX)
     uint32_t start = furi_get_tick();
     while((furi_get_tick() - start) < timeout_ms) {
         if(gpio_get_level(BOARD_PIN_NFC_IRQ) == 0) return true;
@@ -368,7 +375,7 @@ FuriHalNfcError furi_hal_nfc_init(void) {
     esp_timer_create(&btx_args, &block_tx_timer);
 
     /* Configure IRQ pin */
-#ifdef BOARD_PIN_NFC_IRQ
+#if defined(BOARD_PIN_NFC_IRQ) && (BOARD_PIN_NFC_IRQ != UINT16_MAX)
     gpio_config_t irq_conf = {
         .pin_bit_mask = (1ULL << BOARD_PIN_NFC_IRQ),
         .mode = GPIO_MODE_INPUT,
@@ -378,7 +385,7 @@ FuriHalNfcError furi_hal_nfc_init(void) {
 #endif
 
     /* Ensure RST is HIGH (PN532 powered from board power-on) */
-#ifdef BOARD_PIN_NFC_RST
+#if defined(BOARD_PIN_NFC_RST) && (BOARD_PIN_NFC_RST != UINT16_MAX)
     gpio_config_t rst_conf = {
         .pin_bit_mask = (1ULL << BOARD_PIN_NFC_RST),
         .mode = GPIO_MODE_OUTPUT,
