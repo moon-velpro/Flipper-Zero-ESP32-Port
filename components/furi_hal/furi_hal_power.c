@@ -428,7 +428,7 @@ void furi_hal_power_init(void) {
 #endif
 
     /* Initialize shared I2C bus for power ICs (BQ27220 + BQ25896) */
-#if defined(BOARD_PIN_QWIIC_SDA) && defined(BOARD_PIN_QWIIC_SCL)
+#if defined(BOARD_PIN_QWIIC_SDA) && defined(BOARD_PIN_QWIIC_SCL) && !defined(BOARD_POWER_SKIP_I2C)
     {
         i2c_config_t conf = {
             .mode = I2C_MODE_MASTER,
