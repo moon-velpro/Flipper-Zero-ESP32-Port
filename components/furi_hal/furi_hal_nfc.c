@@ -214,7 +214,7 @@ static esp_err_t pn532_i2c_init(void) {
 
 /** Wait for PN532 ready: IRQ pin LOW or I2C RDY byte polling */
 static bool pn532_wait_ready(uint32_t timeout_ms) {
-#ifdef BOARD_PIN_NFC_IRQ
+#if defined(BOARD_PIN_NFC_IRQ) && (BOARD_PIN_NFC_IRQ != UINT16_MAX)
     uint32_t start = furi_get_tick();
     while((furi_get_tick() - start) < timeout_ms) {
         if(gpio_get_level(BOARD_PIN_NFC_IRQ) == 0) return true;
@@ -368,7 +368,7 @@ FuriHalNfcError furi_hal_nfc_init(void) {
     esp_timer_create(&btx_args, &block_tx_timer);
 
     /* Configure IRQ pin */
-#ifdef BOARD_PIN_NFC_IRQ
+#if defined(BOARD_PIN_NFC_IRQ) && (BOARD_PIN_NFC_IRQ != UINT16_MAX)
     gpio_config_t irq_conf = {
         .pin_bit_mask = (1ULL << BOARD_PIN_NFC_IRQ),
         .mode = GPIO_MODE_INPUT,
@@ -378,7 +378,7 @@ FuriHalNfcError furi_hal_nfc_init(void) {
 #endif
 
     /* Ensure RST is HIGH (PN532 powered from board power-on) */
-#ifdef BOARD_PIN_NFC_RST
+#if defined(BOARD_PIN_NFC_RST) && (BOARD_PIN_NFC_RST != UINT16_MAX)
     gpio_config_t rst_conf = {
         .pin_bit_mask = (1ULL << BOARD_PIN_NFC_RST),
         .mode = GPIO_MODE_OUTPUT,
