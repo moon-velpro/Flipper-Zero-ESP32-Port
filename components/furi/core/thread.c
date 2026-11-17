@@ -248,6 +248,15 @@ static StackType_t* furi_thread_alloc_stack(const char* name, uint32_t stack_siz
 FuriThread* furi_thread_alloc(void) {
     /* FuriThread contains StaticTask_t (TCB) which FreeRTOS requires in internal RAM */
     FuriThread* thread = heap_caps_calloc(1, sizeof(FuriThread), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+    if(!thread) {
+        const uint32_t caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+        esp_rom_printf(
+            "\r\n[TASK_TCB_OOM] wanted=%lu free=%lu largest=%lu\r\n",
+            (unsigned long)sizeof(FuriThread),
+            (unsigned long)heap_caps_get_free_size(caps),
+            (unsigned long)heap_caps_get_largest_free_block(caps));
+        furi_crash("Out of internal RAM while allocating thread control block");
+    }
 
     furi_thread_init_common(thread);
 
@@ -262,7 +271,16 @@ FuriThread* furi_thread_alloc_service(
     /* TCB (StaticTask_t) must live in internal RAM — FreeRTOS touches it from
        ISR context and while the cache is suspended. */
     FuriThread* thread = heap_caps_calloc(1, sizeof(FuriThread), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
-    furi_check(thread);
+    if(!thread) {
+        const uint32_t caps = MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT;
+        esp_rom_printf(
+            "\r\n[TASK_TCB_OOM] service=%s wanted=%lu free=%lu largest=%lu\r\n",
+            name ? name : "?",
+            (unsigned long)sizeof(FuriThread),
+            (unsigned long)heap_caps_get_free_size(caps),
+            (unsigned long)heap_caps_get_largest_free_block(caps));
+        furi_crash("Out of internal RAM while allocating service control block");
+    }
 
     furi_thread_init_common(thread);
 
