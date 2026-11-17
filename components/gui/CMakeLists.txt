@@ -67,3 +67,8 @@ idf_component_register(
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE ESP32_HAS_STORAGE=1)
+
+# Enable CJK drawing only on Cardputer-Adv; all other boards are unchanged.
+if(FLIPPER_BOARD STREQUAL "m5stack_cardputer_adv")
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE FLIPPER_ZH_CN=1)
+endif()
