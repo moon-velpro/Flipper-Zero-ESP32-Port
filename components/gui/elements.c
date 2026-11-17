@@ -658,9 +658,92 @@ void elements_bubble_str(
     canvas_draw_line(canvas, x2, y2, x3, y3);
 }
 
+#ifdef FLIPPER_ZH_CN
+#include "canvas_utf8.h"
+
+/* Find a complete UTF-8 prefix that fits. Never truncate inside a code point.
+ * The existing ASCII text paths below remain unmodified. */
+static size_t elements_utf8_prefix_fit(Canvas* canvas, const char* str, size_t width) {
+    FuriString* candidate = furi_string_alloc();
+    size_t fit = 0;
+    for(size_t offset = 0; str[offset] != '\0';) {
+        uint32_t codepoint = 0;
+        const size_t next = canvas_utf8_next(str, offset, &codepoint);
+        if(next <= offset) break;
+        furi_string_set_strn(candidate, str, next);
+        if(canvas_string_width(canvas, furi_string_get_cstr(candidate)) > width) break;
+        fit = next;
+        offset = next;
+    }
+    furi_string_free(candidate);
+    return fit;
+}
+
+static void elements_scrollable_utf8_line(
+    Canvas* canvas,
+    int32_t x,
+    int32_t y,
+    size_t width,
+    const char* str,
+    size_t scroll,
+    bool ellipsis,
+    bool centered) {
+    if(canvas_string_width(canvas, str) <= width) {
+        if(centered) {
+            canvas_draw_str_aligned(canvas, x, y, AlignCenter, AlignBottom, str);
+        } else {
+            canvas_draw_str(canvas, x, y, str);
+        }
+        return;
+    }
+    if(centered) x -= (int32_t)(width / 2);
+
+    /* Scroll by Unicode code points, not UTF-8 bytes; keep a brief pause. */
+    size_t char_count = 0;
+    for(size_t p = 0; str[p] != '\0';) {
+        uint32_t codepoint = 0;
+        const size_t next = canvas_utf8_next(str, p, &codepoint);
+        if(next <= p) break;
+        p = next;
+        char_count++;
+    }
+    const size_t skip = char_count ? scroll % (char_count + 3) : 0;
+    size_t start = 0;
+    for(size_t i = 0; i < skip && i + 1 < char_count; ++i) {
+        uint32_t codepoint = 0;
+        const size_t next = canvas_utf8_next(str, start, &codepoint);
+        if(next <= start) break;
+        start = next;
+    }
+
+    const size_t dots = ellipsis ? canvas_string_width(canvas, "...") : 0;
+    const size_t available = width > dots ? width - dots : 0;
+    const size_t fit = elements_utf8_prefix_fit(canvas, str + start, available);
+    FuriString* line = furi_string_alloc();
+    furi_string_set_strn(line, str + start, fit);
+    if(ellipsis && dots <= width && str[start + fit] != '\0') {
+        furi_string_cat(line, "...");
+    }
+    canvas_draw_str(canvas, x, y, furi_string_get_cstr(line));
+    furi_string_free(line);
+}
+#endif /* FLIPPER_ZH_CN */
+
 void elements_string_fit_width(Canvas* canvas, FuriString* string, size_t width) {
     furi_check(canvas);
     furi_check(string);
+#ifdef FLIPPER_ZH_CN
+    const char* utf8 = furi_string_get_cstr(string);
+    if(canvas_utf8_contains_cjk(utf8)) {
+        if(canvas_string_width(canvas, utf8) <= width) return;
+        const size_t dots = canvas_string_width(canvas, "...");
+        const size_t available = width > dots ? width - dots : 0;
+        const size_t fit = elements_utf8_prefix_fit(canvas, utf8, available);
+        furi_string_left(string, fit);
+        if(dots <= width) furi_string_cat(string, "...");
+        return;
+    }
+#endif
 
     size_t len_px = canvas_string_width(canvas, furi_string_get_cstr(string));
     if(len_px > width) {
@@ -682,6 +765,13 @@ void elements_scrollable_text_line_str(
     size_t scroll,
     bool ellipsis,
     bool centered) {
+#ifdef FLIPPER_ZH_CN
+    if(string && canvas_utf8_contains_cjk(string)) {
+        elements_scrollable_utf8_line(canvas, x, y, width, string, scroll, ellipsis, centered);
+        return;
+    }
+#endif
+
     FuriString* line = furi_string_alloc_set_str(string);
 
     size_t len_px = canvas_string_width(canvas, furi_string_get_cstr(line));
@@ -741,6 +831,14 @@ void elements_scrollable_text_line(
     bool ellipsis) {
     furi_check(canvas);
     furi_check(string);
+
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_contains_cjk(furi_string_get_cstr(string))) {
+        elements_scrollable_utf8_line(
+            canvas, x, y, width, furi_string_get_cstr(string), scroll, ellipsis, false);
+        return;
+    }
+#endif
 
     FuriString* line = furi_string_alloc_set(string);
 
