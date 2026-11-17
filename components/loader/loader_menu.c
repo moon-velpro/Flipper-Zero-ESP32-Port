@@ -241,23 +241,73 @@ static size_t loader_menu_entries_add(LoaderMenuApp* app, LoaderMenuEntryKind ki
     return app->entries_count++;
 }
 
-static const char* loader_menu_entries_label(const LoaderMenuApp* app, size_t pos) {
+/* Display-only translations: app IDs, paths, setting keys and indexes remain English. */
+#ifdef FLIPPER_ZH_CN
+static const char* loader_zh_cn_label(const char* english) {
+    if(!english) return "";
+    static const struct {
+        const char* en;
+        const char* zh;
+    } labels[] = {
+        {"Apps", "应用"},
+        {"Settings", "设置"},
+        {"About", "关于"},
+        {"Archive", "文件管理"},
+        {"Bluetooth", "蓝牙"},
+        {"Wi-Fi", "无线网络"},
+        {"WiFi", "无线网络"},
+        {"Infrared", "红外"},
+        {"Interface", "界面"},
+        {"Graphics", "图形"},
+        {"Main Menu", "主菜单"},
+        {"Lock Screen", "锁屏"},
+        {"Status Bar", "状态栏"},
+        {"Update Firmware", "固件更新"},
+    };
+    for(size_t i = 0; i < sizeof(labels) / sizeof(labels[0]); ++i) {
+        if(strcmp(english, labels[i].en) == 0) return labels[i].zh;
+    }
+    return english;
+}
+
+/* Compact/icon menus have insufficient row height for the 12px CJK fallback. */
+static const char* loader_zh_cn_primary(const char* english) {
+    return (menu_get_style() == MenuStyleList) ? loader_zh_cn_label(english) : english;
+}
+#define LM_T(str) loader_zh_cn_label(str)
+#define LM_PRIMARY_T(str) loader_zh_cn_primary(str)
+#else
+#define LM_T(str) (str)
+#define LM_PRIMARY_T(str) (str)
+#endif
+
+static const char* loader_menu_entries_label(
+    const LoaderMenuApp* app,
+    size_t pos,
+    bool primary_menu) {
     const LoaderMenuEntry* entry = &app->entries[pos];
+    const char* source = "";
     switch(entry->kind) {
     case LoaderMenuEntryKindApplications:
-        return LOADER_APPLICATIONS_NAME;
+        source = LOADER_APPLICATIONS_NAME;
+        break;
     case LoaderMenuEntryKindInternal:
-        return FLIPPER_APPS[entry->index].name;
+        source = FLIPPER_APPS[entry->index].name;
+        break;
     case LoaderMenuEntryKindExternal:
-        return FLIPPER_EXTERNAL_APPS[entry->index].name;
+        source = FLIPPER_EXTERNAL_APPS[entry->index].name;
+        break;
     case LoaderMenuEntryKindInternalAdded:
-        return FLIPPER_SYSTEM_APPS[entry->index].name;
+        source = FLIPPER_SYSTEM_APPS[entry->index].name;
+        break;
     case LoaderMenuEntryKindFap:
-        return furi_string_get_cstr(app->faps[entry->index].name);
+        source = furi_string_get_cstr(app->faps[entry->index].name);
+        break;
     case LoaderMenuEntryKindSettings:
-        return "Settings";
+        source = "Settings";
+        break;
     }
-    return "";
+    return primary_menu ? LM_PRIMARY_T(source) : LM_T(source);
 }
 
 static const Icon* loader_menu_entries_icon(const LoaderMenuApp* app, size_t pos) {
@@ -399,7 +449,7 @@ static void loader_menu_build_menu(LoaderMenuApp* app) {
     for(size_t i = 0; i < app->entries_count; ++i) {
         menu_add_item(
             app->primary_menu,
-            loader_menu_entries_label(app, i),
+            loader_menu_entries_label(app, i, true),
             loader_menu_entries_icon(app, i),
             (uint32_t)i,
             loader_menu_primary_callback,
@@ -473,7 +523,7 @@ static void loader_menu_build_submenu(LoaderMenuApp* app) {
             app);
     }
     submenu_add_item(
-        app->settings_menu, "Interface", 0, loader_menu_settings_interface_callback, app);
+        app->settings_menu, LM_T("Interface"), 0, loader_menu_settings_interface_callback, app);
 }
 
 /* ---------------------------------------------------------------- */
@@ -515,10 +565,10 @@ static void loader_menu_interface_go_graphics(void* context, uint32_t index) {
 static void loader_menu_build_interface(LoaderMenuApp* app) {
     submenu_reset(app->interface_menu);
     submenu_set_header(app->interface_menu, "Interface:");
-    submenu_add_item(app->interface_menu, "Graphics", 0, loader_menu_interface_go_graphics, app);
-    submenu_add_item(app->interface_menu, "Main Menu", 1, loader_menu_interface_go_main, app);
-    submenu_add_item(app->interface_menu, "Lock Screen", 2, loader_menu_interface_go_lock, app);
-    submenu_add_item(app->interface_menu, "Status Bar", 3, loader_menu_interface_go_status, app);
+    submenu_add_item(app->interface_menu, LM_T("Graphics"), 0, loader_menu_interface_go_graphics, app);
+    submenu_add_item(app->interface_menu, LM_T("Main Menu"), 1, loader_menu_interface_go_main, app);
+    submenu_add_item(app->interface_menu, LM_T("Lock Screen"), 2, loader_menu_interface_go_lock, app);
+    submenu_add_item(app->interface_menu, LM_T("Status Bar"), 3, loader_menu_interface_go_status, app);
 }
 
 /* ---------------------------------------------------------------- */
@@ -1221,7 +1271,7 @@ void loader_menu_build_remove(LoaderMenuApp* app) {
         }
         submenu_add_item(
             app->remove_menu,
-            loader_menu_entries_label(app, i),
+            loader_menu_entries_label(app, i, false),
             (uint32_t)i,
             loader_menu_remove_callback,
             app);
