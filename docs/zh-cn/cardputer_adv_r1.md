@@ -121,3 +121,28 @@ python -m esptool --chip esp32s3 --port $Port --baud 460800 write_flash --flash_
 回滚镜像必须是**同一设备**测试前取得的完整备份。不要把别人的 8 MB 备份写入自己的设备。
 
 **发布判定：** 最新提交 CI 全绿且完成上述实机验收后，再考虑将 Draft PR 转为 Ready。当前仍为开发试点，未宣布量产或正式发布。
+
+## 首轮实机烧录反馈：启动循环（2026-11-17）
+
+使用 2026-11-16 21:41 编译的已通过 CI 的 R1 镜像，在 Cardputer-ADV 实机通过 8 MB DIO Flash 引导、加载应用、初始化屏幕，随后在服务启动阶段发生确定性的循环崩溃。**此前的 CI 绿色不能代表实机启动成功。** 关键异常：
+
+```text
+assert failed: xTaskCreateStaticPinnedToCore freertos_tasks_c_additions.h:299
+(xPortcheckValidStackMem(puxStackBuffer))
+... Stack for 'PowerSrv' (4096 B) in internal RAM (PSRAM full)
+E InputCardputerAdv: i2c_driver_install failed: ESP_FAIL
+E esp_core_dump_flash: No core dump partition found!
+E gpio: gpio_set_level(238): GPIO output gpio_num error
+```
+
+源代码审计发现：在无 PSRAM 的 ADV 上，`furi_thread_alloc_stack()` 的内部 RAM fallback 可能返回 NULL，旧代码仍把 NULL 交给 `xTaskCreateStatic`，导致上述断言；旧日志不能单独证明究竟是哪个内存区/碎片造成该分配失败。Power HAL 误占用 I2C0（Grove GPIO2/1），与 TCA8418 键盘专用 I2C0（GPIO8/9）冲突；NFC 不存在的 IRQ/RST 引脚以 UINT16_MAX 表示，但之前的 `#ifdef` 判断把这些数值当作实际 GPIO。
+
+针对实机故障提交的下一轮修复（**尚未编译、尚未实机验证**）：
+- Power HAL 按 `BOARD_POWER_SKIP_I2C` 禁止提前安装 I2C0；对 ADV 的外接 Grove I2C API 使用 I2C1，键盘独占 I2C0。
+- NFC 检查 IRQ/RST 引脚不等于 UINT16_MAX，避免向 ESP-IDF 传递 GPIO65535。
+- ADV 显示 DMA stripe 从 32 行（15,360 字节）降到 8 行（3,840 字节），减少 11,520 字节内部 DMA heap；仅对该板有效。
+- ADV SpeakerWorker 改为首次实际出声时启动，释放启动阶段 4 KiB 的栈需求；对其他板型保留原行为。
+- 栈分配失败时打印 `[TASK_STACK_OOM]` 和 internal free/largest/min_free，而非把 NULL 传给 FreeRTOS；各启动服务额外记录可分配内存。
+- ADV 独立分区表在原有 6 MiB factory app 与 u2fkeys 后添加 128 KiB `data,coredump`；CI 对照版同步使用该分区表。
+
+**测试状态：** 旧 ZIP（提交 `d261184`）实机可加载但循环崩溃，禁止再推荐它作为稳定固件；新修复尚无成功编译和实机复测记录。新烧录包须来自后续成功 CI 的同一提交的 bootloader / partition table / app 三件套。新分区表不可和旧包混刷；不需要额外执行全片擦除。
