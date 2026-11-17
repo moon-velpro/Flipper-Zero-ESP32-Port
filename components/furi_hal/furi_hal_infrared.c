@@ -376,9 +376,10 @@ static bool IRAM_ATTR ir_rmt_rx_done_callback(rmt_channel_handle_t channel,
 void furi_hal_infrared_async_rx_start(void) {
     /* Atomic: a TX claim, a running TX or a second RX start is a caller bug. */
     furi_check(ir_state_transition(InfraredStateIdle, InfraredStateAsyncRx));
-#if !BOARD_HAS_IR
-    /* Stay in AsyncRx so the caller's async_rx_stop() is still a valid pair. */
-    FURI_LOG_E("IR", "Board has no IR support");
+#if !BOARD_HAS_IR || (defined(BOARD_HAS_IR_RX) && !BOARD_HAS_IR_RX)
+    /* No onboard IR receiver: never claim the Grove I2C clock as an RMT RX
+     * input. Stay in AsyncRx so async_rx_stop() remains a valid pair. */
+    FURI_LOG_E("IR", "Board has no IR receiver");
     return;
 #endif
 
