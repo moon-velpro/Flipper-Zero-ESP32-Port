@@ -225,8 +225,9 @@ void furi_hal_init_early(void) {
     furi_hal_m5pm1_init();
 #endif
 
-#ifdef BOARD_PIN_PWR_EN
-    /* Power-enable must be set early — powers CC1101, BQ27220 fuel gauge, WS2812 */
+#if defined(BOARD_PIN_PWR_EN) && (BOARD_PIN_PWR_EN != UINT16_MAX)
+    /* Power-enable must be set early on boards with a real PWR_EN GPIO.
+     * Cardputer ADV has no PWR_EN pad (UINT16_MAX sentinel). */
     static const GpioPin pwr_en = {.port = NULL, .pin = BOARD_PIN_PWR_EN};
     furi_hal_gpio_init_simple(&pwr_en, GpioModeOutputPushPull);
     furi_hal_gpio_write(&pwr_en, true);
