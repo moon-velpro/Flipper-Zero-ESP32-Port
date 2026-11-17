@@ -494,6 +494,43 @@ static void text_input_handle_right(TextInput* text_input, TextInputModel* model
     }
 }
 
+static void text_input_submit(TextInput* text_input, TextInputModel* model) {
+    const size_t text_length = strlen(model->text_buffer);
+    if(model->validator_callback &&
+       (!model->validator_callback(
+           model->text_buffer, model->validator_text, model->validator_callback_context))) {
+        model->validator_message_visible = true;
+        furi_timer_start(text_input->timer, furi_kernel_get_tick_frequency() * 4);
+    } else if(model->callback != 0 && text_length >= model->minimum_length) {
+        model->callback(model->callback_context);
+    }
+}
+
+static void text_input_handle_physical_key(TextInputModel* model, unsigned key) {
+    if(key == (unsigned)'\b' || key == 0x7FU) {
+        text_input_backspace_cb(model);
+        model->clear_default_text = false;
+        return;
+    }
+    if(key < 0x20U || key > 0x7EU || !model->text_buffer || model->text_buffer_size < 2) {
+        return;
+    }
+
+    size_t length = strlen(model->text_buffer);
+    if(model->clear_default_text) {
+        model->text_buffer[0] = (char)key;
+        model->text_buffer[1] = '\0';
+        model->cursor_pos = 1;
+    } else if(length < model->text_buffer_size - 1) {
+        if(model->cursor_pos > length) model->cursor_pos = length;
+        char* at = model->text_buffer + model->cursor_pos;
+        memmove(at + 1, at, strlen(at) + 1);
+        *at = (char)key;
+        model->cursor_pos++;
+    }
+    model->clear_default_text = false;
+}
+
 static void text_input_handle_ok(TextInput* text_input, TextInputModel* model, InputType type) {
     if(model->cursor_select) {
         model->clear_default_text = !model->clear_default_text;
@@ -505,14 +542,7 @@ static void text_input_handle_ok(TextInput* text_input, TextInputModel* model, I
     size_t text_length = strlen(model->text_buffer);
 
     if(selected == ENTER_KEY) {
-        if(model->validator_callback &&
-           (!model->validator_callback(
-               model->text_buffer, model->validator_text, model->validator_callback_context))) {
-            model->validator_message_visible = true;
-            furi_timer_start(text_input->timer, furi_kernel_get_tick_frequency() * 4);
-        } else if(model->callback != 0 && text_length >= model->minimum_length) {
-            model->callback(model->callback_context);
-        }
+        text_input_submit(text_input, model);
     } else if(selected == SWITCH_KEYBOARD_KEY) {
         switch_keyboard(model);
     } else {
@@ -569,7 +599,19 @@ static bool text_input_view_input_callback(InputEvent* event, void* context) {
     // Acquire model
     TextInputModel* model = view_get_model(text_input->view);
 
-    if((!(event->type == InputTypePress) && !(event->type == InputTypeRelease)) &&
+    if(event->type == InputTypeText) {
+        /* Physical Cardputer ADV keyboard. ASCII is carried in key (not an
+         * InputKey navigation enum); no Press/Release pair accompanies it. */
+        text_input_handle_physical_key(model, (unsigned)event->key);
+        model->validator_message_visible = false;
+        consumed = true;
+    } else if(event->type == InputTypeShort &&
+              event->key == InputKeyOk &&
+              event->sequence_source == INPUT_SEQUENCE_SOURCE_KEYBOARD) {
+        /* Physical Enter submits, rather than selecting an onscreen key. */
+        text_input_submit(text_input, model);
+        consumed = true;
+    } else if((!(event->type == InputTypePress) && !(event->type == InputTypeRelease)) &&
        model->validator_message_visible) {
         model->validator_message_visible = false;
         consumed = true;
