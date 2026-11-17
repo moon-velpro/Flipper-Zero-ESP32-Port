@@ -41,7 +41,15 @@
 #define TAG "FuriHalI2c"
 
 /* ---- Which bus is "external" on this board ---- */
-#if defined(BOARD_PIN_QWIIC_SDA) && defined(BOARD_PIN_QWIIC_SCL)
+#if defined(BOARD_HAS_TCA8418) && BOARD_HAS_TCA8418 && \
+    defined(BOARD_PIN_QWIIC_SDA) && defined(BOARD_PIN_QWIIC_SCL)
+/* Cardputer ADV: I2C0 is exclusively for the keyboard/codec on GPIO8/9.
+ * The external Grove connector uses I2C1 on GPIO2/1 (installed by NFC HAL). */
+#define FHI2C_SDA        BOARD_PIN_QWIIC_SDA
+#define FHI2C_SCL        BOARD_PIN_QWIIC_SCL
+#define FHI2C_PORT       BOARD_NFC_I2C_PORT
+#define FHI2C_BUS_OWNED  1
+#elif defined(BOARD_PIN_QWIIC_SDA) && defined(BOARD_PIN_QWIIC_SCL)
 #define FHI2C_SDA        BOARD_PIN_QWIIC_SDA
 #define FHI2C_SCL        BOARD_PIN_QWIIC_SCL
 #define FHI2C_PORT       I2C_NUM_0 /* installed by furi_hal_power_init() */
