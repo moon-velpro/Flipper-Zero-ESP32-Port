@@ -81,7 +81,7 @@ jobs:
 
           def section_size(content, section):
               match = re.search(
-                  rf"^{re.escape(section)}\\s+0x[0-9a-fA-F]+\\s+(0x[0-9a-fA-F]+)",
+                  rf"^{re.escape(section)}\s+0x[0-9a-fA-F]+\s+(0x[0-9a-fA-F]+)",
                   content, re.MULTILINE,
               )
               if not match:
