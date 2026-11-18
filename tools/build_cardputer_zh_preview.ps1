@@ -41,79 +41,13 @@ try {
     }
 
     $sdkText = Get-Content $sdk -Raw
-    if ($sdkText -notmatch '(?m)^CONFIG_IDF_TARGET="esp32s3"
-        throw "Expected 8MB flash configuration not found."
-    }
-    if ($sdkText -match '(?m)^CONFIG_SPIRAM=y$') {
-        throw "Unexpected PSRAM configuration; do not flash."
-    }
-
-    $size = (Get-Item $bin).Length
-    $partitionSize = 0x600000
-    if ($size -gt $partitionSize) {
-        throw "Firmware size $size exceeds original factory partition $partitionSize."
-    }
-
-    $hash = (Get-FileHash -Algorithm SHA256 $bin).Hash
-    Write-Host "Build succeeded. Firmware: $bin" -ForegroundColor Green
-    Write-Host "Size: $size bytes / $partitionSize bytes"
-    Write-Host "SHA256: $hash"
-    Write-Host "No flashing has been performed."
-    Write-Host "Review bootable-original recovery path before any hardware test."
-} finally {
-    Pop-Location
-}
-) {
+    if ($sdkText -notmatch '(?m)^CONFIG_IDF_TARGET="esp32s3"$') {
         throw "Expected ESP32-S3 target not found."
     }
-    if ($sdkText -notmatch '(?m)^CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_singleapp_large\.csv"
-        throw "Expected 8MB flash configuration not found."
-    }
-    if ($sdkText -match '(?m)^CONFIG_SPIRAM=y$') {
-        throw "Unexpected PSRAM configuration; do not flash."
-    }
-
-    $size = (Get-Item $bin).Length
-    $partitionSize = 0x600000
-    if ($size -gt $partitionSize) {
-        throw "Firmware size $size exceeds original factory partition $partitionSize."
-    }
-
-    $hash = (Get-FileHash -Algorithm SHA256 $bin).Hash
-    Write-Host "Build succeeded. Firmware: $bin" -ForegroundColor Green
-    Write-Host "Size: $size bytes / $partitionSize bytes"
-    Write-Host "SHA256: $hash"
-    Write-Host "No flashing has been performed."
-    Write-Host "Review bootable-original recovery path before any hardware test."
-} finally {
-    Pop-Location
-}
-) {
+    if ($sdkText -notmatch '(?m)^CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_singleapp_large\.csv"$') {
         throw "Original factory partition table is not selected; do not flash."
     }
-    if ($sdkText -notmatch '(?m)^CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
-        throw "Expected 8MB flash configuration not found."
-    }
-    if ($sdkText -match '(?m)^CONFIG_SPIRAM=y$') {
-        throw "Unexpected PSRAM configuration; do not flash."
-    }
-
-    $size = (Get-Item $bin).Length
-    $partitionSize = 0x600000
-    if ($size -gt $partitionSize) {
-        throw "Firmware size $size exceeds original factory partition $partitionSize."
-    }
-
-    $hash = (Get-FileHash -Algorithm SHA256 $bin).Hash
-    Write-Host "Build succeeded. Firmware: $bin" -ForegroundColor Green
-    Write-Host "Size: $size bytes / $partitionSize bytes"
-    Write-Host "SHA256: $hash"
-    Write-Host "No flashing has been performed."
-    Write-Host "Review bootable-original recovery path before any hardware test."
-} finally {
-    Pop-Location
-}
-) {
+    if ($sdkText -notmatch '(?m)^CONFIG_ESPTOOLPY_FLASHSIZE="8MB"$') {
         throw "Expected 8MB flash configuration not found."
     }
     if ($sdkText -match '(?m)^CONFIG_SPIRAM=y$') {
