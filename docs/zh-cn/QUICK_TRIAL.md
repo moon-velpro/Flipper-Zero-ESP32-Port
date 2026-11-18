@@ -48,6 +48,25 @@ python winbuild.py monitor --port COM14 --duration 30
 
 如果无法启动，请恢复经验证能启动的原版镜像，保存启动串口日志与该分支 commit；不要靠继续修改任务栈或驱动来“试”修问题。
 
+## 可复现的 UTF-8 宿主验证（2026-11-19）
+
+从本 PR 分支检索下列文件，在隔离的 Linux 工作目录中还原，使用 `git hash-object` 校验其 Git Blob SHA 与仓库一致：
+
+- `components/gui/canvas_utf8.c`：`f250b84dac0778a01c9a0a74cc5670e3b4cdc54b`
+- `components/gui/canvas_utf8.h`：`e7a348e2822b584e529c5b7be77191b412e1d762`
+- `tests/host/canvas_utf8_test.c`：`099af6f234e144820aa3eb99492a61e5b1638df9`
+
+随后执行：
+
+```sh
+cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer \
+  -Icomponents/gui components/gui/canvas_utf8.c tests/host/canvas_utf8_test.c \
+  -o /tmp/cardputer_utf8_test
+ASAN_OPTIONS=detect_leaks=0 UBSAN_OPTIONS=halt_on_error=1 /tmp/cardputer_utf8_test
+```
+
+输出：`canvas UTF-8 tests passed`。没有报告编译警告或 Sanitizer 错误。**这仅证明上述精确版本的 UTF-8 宿主测试通过；不代表 ESP-IDF 整机编译或 Cardputer-Adv 实机启动验证通过。**
+
 ## 状态与验证
 
 - Github 审阅：[Draft PR #2](https://github.com/moon-velpro/Flipper-Zero-ESP32-Port/pull/2)
