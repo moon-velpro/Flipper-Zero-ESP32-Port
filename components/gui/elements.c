@@ -663,19 +663,22 @@ void elements_bubble_str(
 
 /* Find a complete UTF-8 prefix that fits. Never truncate inside a code point.
  * The existing ASCII text paths below remain unmodified. */
+/* 128 bytes covers a full Cardputer-Adv menu row even with narrow ASCII.
+ * Use stack scratch space instead of allocating on every GUI redraw. */
+#define ELEMENTS_ZH_PREFIX_BYTES 128
 static size_t elements_utf8_prefix_fit(Canvas* canvas, const char* str, size_t width) {
-    FuriString* candidate = furi_string_alloc();
+    char candidate[ELEMENTS_ZH_PREFIX_BYTES];
     size_t fit = 0;
     for(size_t offset = 0; str[offset] != '\0';) {
         uint32_t codepoint = 0;
         const size_t next = canvas_utf8_next(str, offset, &codepoint);
-        if(next <= offset) break;
-        furi_string_set_strn(candidate, str, next);
-        if(canvas_string_width(canvas, furi_string_get_cstr(candidate)) > width) break;
+        if(next <= offset || next >= sizeof(candidate)) break;
+        memcpy(candidate, str, next);
+        candidate[next] = '\0';
+        if(canvas_string_width(canvas, candidate) > width) break;
         fit = next;
         offset = next;
     }
-    furi_string_free(candidate);
     return fit;
 }
 
@@ -719,13 +722,15 @@ static void elements_scrollable_utf8_line(
     const size_t dots = ellipsis ? canvas_string_width(canvas, "...") : 0;
     const size_t available = width > dots ? width - dots : 0;
     const size_t fit = elements_utf8_prefix_fit(canvas, str + start, available);
-    FuriString* line = furi_string_alloc();
-    furi_string_set_strn(line, str + start, fit);
+    char line[ELEMENTS_ZH_PREFIX_BYTES + 3];
+    memcpy(line, str + start, fit);
+    size_t line_bytes = fit;
     if(ellipsis && dots <= width && str[start + fit] != '\0') {
-        furi_string_cat(line, "...");
+        memcpy(line + line_bytes, "...", 3);
+        line_bytes += 3;
     }
-    canvas_draw_str(canvas, x, y, furi_string_get_cstr(line));
-    furi_string_free(line);
+    line[line_bytes] = '\0';
+    canvas_draw_str(canvas, x, y, line);
 }
 #endif /* FLIPPER_ZH_CN */
 
