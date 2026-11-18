@@ -6,11 +6,23 @@
 
 - Cardputer-Adv 专用 UTF-8 解码和 U8g2 文泉驿 GB2312 中文字形回退（字库随只读固件存储，非将整套字库复制到堆）。
 - 列表样式主菜单与部分设置菜单中文显示（例如：应用、设置、蓝牙、界面、图形）。
-- 常见菜单滚动及截断避免从 UTF-8 字节中间切断。
+- 常见菜单滚动及截断避免从 UTF-8 字节中间切断；中文滚动/截断路径已改用小型栈缓冲，避免 GUI 每帧反复申请堆内存。
 - ASCII 与其他板型仍使用原有字体路径。
 - **尚不是完整汉化版**；复杂文本框、中文键盘、全部应用菜单和极紧凑布局以后分阶段适配。
 
-## 编译（Windows，ESP-IDF v5.4.1）
+## 最快编译（Windows，ESP-IDF v5.4.1）
+
+使用最小分支递归克隆后，在 PowerShell 中运行：
+
+```powershell
+git clone --recursive -b feature/cardputer-adv-zh-cn-minimal https://github.com/moon-velpro/Flipper-Zero-ESP32-Port.git
+cd Flipper-Zero-ESP32-Port
+powershell -ExecutionPolicy Bypass -File .\tools\build_cardputer_zh_preview.ps1
+```
+
+脚本仅执行环境检查与构建；失败时停止，不会自动烧录。成功后显示固件路径、字节数、SHA-256，并验证 8 MB Flash、无 PSRAM 及原版 6 MiB 应用分区限制。它无法代替实机启动测试，也不会自行更改原版的 ESP-IDF 或分区配置。
+
+## 手动编译（Windows，ESP-IDF v5.4.1）
 
 ```powershell
 git clone --recursive -b feature/cardputer-adv-zh-cn-minimal https://github.com/moon-velpro/Flipper-Zero-ESP32-Port.git
