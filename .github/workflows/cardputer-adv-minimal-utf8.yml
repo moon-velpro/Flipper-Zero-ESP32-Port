@@ -1,0 +1,134 @@
+name: Cardputer-Adv minimal UTF-8 checks
+
+on:
+  push:
+    branches:
+      - feature/cardputer-adv-zh-cn-minimal
+  pull_request:
+    paths:
+      - 'components/gui/**'
+      - 'components/loader/**'
+      - 'tests/host/canvas_utf8_test.c'
+      - '.github/workflows/cardputer-adv-minimal-utf8.yml'
+  workflow_dispatch:
+
+jobs:
+  utf8-host:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run UTF-8 decoder tests with sanitizers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -Icomponents/gui components/gui/canvas_utf8.c tests/host/canvas_utf8_test.c \
+            -o /tmp/cardputer_utf8_test
+          /tmp/cardputer_utf8_test
+      - name: Reject duplicated Cardputer CJK helper definitions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          canvas = Path("components/gui/canvas.c").read_text()
+          for symbol in (
+              "static int8_t canvas_glyph_advance(",
+              "static void canvas_draw_unicode_glyph(",
+              "static void canvas_draw_utf8_mixed(",
+          ):
+              count = canvas.count(symbol)
+              if count != 1:
+                  raise SystemExit(f"Expected exactly one {symbol}, found {count}")
+          print("Cardputer CJK helper definitions: unique")
+          PY
+
+  build-original-config:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Install ESP-IDF dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git wget flex bison gperf python3 python3-pip python3-venv cmake ninja-build ccache libffi-dev libssl-dev dfu-util libusb-1.0-0 libglib2.0-dev
+      - name: Install ESP-IDF v5.4.1
+        run: |
+          mkdir -p ~/esp
+          git clone --branch v5.4.1 --depth 1 --recursive https://github.com/espressif/esp-idf.git ~/esp/esp-idf
+          bash ~/esp/esp-idf/install.sh esp32s3
+      - name: Checkout original bootable baseline (separate tree)
+        uses: actions/checkout@v4
+        with:
+          ref: e6ec11972a8e025d7ab686a6ef3016cf52360834
+          path: original
+          submodules: recursive
+      - name: Build original baseline without copying any configuration
+        working-directory: original
+        shell: bash
+        run: |
+          set -euo pipefail
+          source ~/esp/esp-idf/export.sh
+          python3 winbuild.py check
+          python3 winbuild.py build --board cardputer_adv
+      - name: Build Cardputer-Adv with untouched original board configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          source ~/esp/esp-idf/export.sh
+          python3 winbuild.py check
+          python3 winbuild.py build --board cardputer_adv
+      - name: Compare original vs minimal localized firmware
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          baseline_dir = Path("original/build_cardputer_adv")
+          localized_dir = Path("build_cardputer_adv")
+          baseline_sdk = (baseline_dir / "sdkconfig").read_text()
+          localized_sdk = (localized_dir / "sdkconfig").read_text()
+          if baseline_sdk != localized_sdk:
+              raise SystemExit("FAIL: localized sdkconfig differs from original baseline")
+
+          def section_size(content, section):
+              match = re.search(
+                  rf"^{re.escape(section)}\s+0x[0-9a-fA-F]+\s+(0x[0-9a-fA-F]+)",
+                  content, re.MULTILINE,
+              )
+              if not match:
+                  raise SystemExit(f"Missing linker-map section: {section}")
+              return int(match.group(1), 16)
+
+          original_map = (baseline_dir / "furi_esp32.map").read_text(errors="replace")
+          localized_map = (localized_dir / "furi_esp32.map").read_text(errors="replace")
+          orig_dram = sum(section_size(original_map, x) for x in (".dram0.data", ".dram0.bss"))
+          new_dram = sum(section_size(localized_map, x) for x in (".dram0.data", ".dram0.bss"))
+          orig_flash = sum(section_size(original_map, x) for x in (".flash.text", ".flash.rodata"))
+          new_flash = sum(section_size(localized_map, x) for x in (".flash.text", ".flash.rodata"))
+          app_size = (localized_dir / "furi_esp32.bin").stat().st_size
+          print(f"Baseline static DRAM: {orig_dram} B; localized: {new_dram} B; delta {new_dram - orig_dram:+d} B")
+          print(f"Baseline flash .text+.rodata: {orig_flash} B; localized: {new_flash} B; delta {new_flash - orig_flash:+d} B")
+          print(f"Localized firmware image: {app_size} B (factory partition: {0x600000} B)")
+          if new_dram - orig_dram > 2048:
+              raise SystemExit("FAIL: localization increases static DRAM by over 2 KiB")
+          if app_size > 0x600000:
+              raise SystemExit("FAIL: image is larger than the original 6 MiB factory partition")
+          PY
+      - name: Upload build evidence (not a flash recommendation)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cardputer-adv-minimal-build-evidence
+          path: |
+            build_cardputer_adv/sdkconfig
+            build_cardputer_adv/furi_esp32.map
+            build_cardputer_adv/furi_esp32.bin
+            original/build_cardputer_adv/sdkconfig
+            original/build_cardputer_adv/furi_esp32.map
+          if-no-files-found: warn
+          retention-days: 7

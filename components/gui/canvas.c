@@ -1,4 +1,8 @@
 #include "canvas_i.h"
+
+#ifdef FLIPPER_ZH_CN
+#include "canvas_utf8.h"
+#endif
 #include "icon_animation_i.h"
 
 #include <furi.h>
@@ -188,11 +192,86 @@ void canvas_set_custom_u8g2_font(Canvas* canvas, const uint8_t* font) {
     u8g2_SetFont(&canvas->fb, font);
 }
 
+#ifdef FLIPPER_ZH_CN
+static int8_t canvas_glyph_advance(Canvas* canvas, uint16_t symbol) {
+    if(canvas_utf8_is_cjk(symbol)) {
+        const uint8_t* prior_font = canvas->fb.font;
+        u8g2_SetFont(&canvas->fb, u8g2_font_wqy12_t_gb2312);
+        if(u8g2_IsGlyph(&canvas->fb, symbol)) {
+            int8_t advance = u8g2_GetGlyphWidth(&canvas->fb, symbol);
+            u8g2_SetFont(&canvas->fb, prior_font);
+            return advance;
+        }
+        u8g2_SetFont(&canvas->fb, prior_font);
+        symbol = '?';
+    }
+
+    /* Preserve U8g2's signed advance for all non-CJK glyphs. */
+    return u8g2_GetGlyphWidth(&canvas->fb, symbol);
+}
+
+static void canvas_draw_unicode_glyph(Canvas* canvas, int32_t x, int32_t y, uint16_t ch) {
+    if(canvas_utf8_is_cjk(ch)) {
+        const uint8_t* prior_font = canvas->fb.font;
+        u8g2_SetFont(&canvas->fb, u8g2_font_wqy12_t_gb2312);
+        if(u8g2_IsGlyph(&canvas->fb, ch)) {
+            /* Existing logical UI has 11-16 px rows: keep CJK within a row. */
+            const uint8_t direction = canvas->fb.font_decode.dir;
+            int32_t baseline_shift = (direction == 0 || direction == 2) ? 2 : 0;
+            u8g2_DrawGlyph(&canvas->fb, x, y + baseline_shift, ch);
+            u8g2_SetFont(&canvas->fb, prior_font);
+            return;
+        }
+        u8g2_SetFont(&canvas->fb, prior_font);
+        ch = '?';
+    }
+    u8g2_DrawGlyph(&canvas->fb, x, y, ch);
+}
+
+static void canvas_draw_utf8_mixed(Canvas* canvas, int32_t x, int32_t y, const char* text) {
+    size_t offset = 0;
+    uint8_t direction = canvas->fb.font_decode.dir;
+
+    while(text[offset] != '\0') {
+        uint32_t codepoint = 0;
+        size_t next = canvas_utf8_next(text, offset, &codepoint);
+        if(next <= offset) break;
+
+        uint16_t glyph = codepoint <= UINT16_MAX ? (uint16_t)codepoint : '?';
+        int8_t advance = canvas_glyph_advance(canvas, glyph);
+        canvas_draw_unicode_glyph(canvas, x, y, glyph);
+        switch(direction) {
+        case 0:
+            x += advance;
+            break;
+        case 1:
+            y += advance;
+            break;
+        case 2:
+            x -= advance;
+            break;
+        case 3:
+            y -= advance;
+            break;
+        default:
+            break;
+        }
+        offset = next;
+    }
+}
+#endif /* FLIPPER_ZH_CN */
+
 void canvas_draw_str(Canvas* canvas, int32_t x, int32_t y, const char* str) {
     furi_check(canvas);
     if(!str) return;
     x += canvas->offset_x;
     y += canvas->offset_y;
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_contains_cjk(str)) {
+        canvas_draw_utf8_mixed(canvas, x, y, str);
+        return;
+    }
+#endif
     u8g2_DrawUTF8(&canvas->fb, x, y, str);
 }
 
@@ -208,14 +287,22 @@ void canvas_draw_str_aligned(
     x += canvas->offset_x;
     y += canvas->offset_y;
 
+#ifdef FLIPPER_ZH_CN
+    const uint16_t string_width = canvas_utf8_contains_cjk(str) ?
+                                      canvas_string_width(canvas, str) :
+                                      u8g2_GetUTF8Width(&canvas->fb, str);
+#else
+    const uint16_t string_width = u8g2_GetUTF8Width(&canvas->fb, str);
+#endif
+
     switch(horizontal) {
     case AlignLeft:
         break;
     case AlignRight:
-        x -= u8g2_GetUTF8Width(&canvas->fb, str);
+        x -= string_width;
         break;
     case AlignCenter:
-        x -= (u8g2_GetUTF8Width(&canvas->fb, str) / 2);
+        x -= (string_width / 2);
         break;
     default:
         furi_crash();
@@ -236,17 +323,62 @@ void canvas_draw_str_aligned(
         break;
     }
 
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_contains_cjk(str)) {
+        canvas_draw_utf8_mixed(canvas, x, y, str);
+        return;
+    }
+#endif
     u8g2_DrawUTF8(&canvas->fb, x, y, str);
 }
 
 uint16_t canvas_string_width(Canvas* canvas, const char* str) {
     furi_check(canvas);
     if(!str) return 0;
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_contains_cjk(str)) {
+        int32_t width = 0;
+        int8_t last_advance = 0;
+        int8_t last_glyph_width = 0;
+        int8_t last_glyph_x_offset = 0;
+        bool has_last_glyph = false;
+
+        for(size_t offset = 0; str[offset] != '\0';) {
+            uint32_t codepoint = 0;
+            size_t next = canvas_utf8_next(str, offset, &codepoint);
+            if(next <= offset) break;
+
+            uint16_t glyph = codepoint <= UINT16_MAX ? (uint16_t)codepoint : '?';
+            int8_t advance = canvas_glyph_advance(canvas, glyph);
+            width += advance;
+            last_advance = advance;
+            last_glyph_width = canvas->fb.font_decode.glyph_width;
+            last_glyph_x_offset = canvas->fb.glyph_x_offset;
+            has_last_glyph = true;
+            offset = next;
+        }
+
+        /* Match U8g2's final-glyph bearing correction for aligned text. */
+        if(has_last_glyph && last_glyph_width != 0) {
+            width += (int32_t)last_glyph_width + last_glyph_x_offset - last_advance;
+        }
+        if(width <= 0) return 0;
+        if(width > UINT16_MAX) return UINT16_MAX;
+        return (uint16_t)width;
+    }
+#endif
     return u8g2_GetUTF8Width(&canvas->fb, str);
 }
 
 size_t canvas_glyph_width(Canvas* canvas, uint16_t symbol) {
     furi_check(canvas);
+#ifdef FLIPPER_ZH_CN
+    if(canvas_utf8_is_cjk(symbol)) {
+        int8_t advance = canvas_glyph_advance(canvas, symbol);
+        return advance > 0 ? (size_t)advance : 0;
+    }
+#endif
+    /* Preserve the original U8g2 result for every non-CJK glyph. */
     return u8g2_GetGlyphWidth(&canvas->fb, symbol);
 }
 

@@ -11,9 +11,18 @@ else()
 endif()
 
 
+# Only compile the standalone UTF-8 helper on Cardputer-Adv.
+# No rendering, task, driver, or partition changes in this stage.
+if(FLIPPER_BOARD STREQUAL "m5stack_cardputer_adv")
+    set(CARDPUTER_UTF8_SRC "canvas_utf8.c")
+else()
+    set(CARDPUTER_UTF8_SRC "")
+endif()
+
 idf_component_register(
     SRCS
         "gui.c"
+        ${CARDPUTER_UTF8_SRC}
         "momentum_settings.c"
         "canvas.c"
         "icon.c"
@@ -58,3 +67,8 @@ idf_component_register(
 )
 
 target_compile_definitions(${COMPONENT_LIB} PRIVATE ESP32_HAS_STORAGE=1)
+
+# Enable CJK drawing only on Cardputer-Adv; all other boards are unchanged.
+if(FLIPPER_BOARD STREQUAL "m5stack_cardputer_adv")
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE FLIPPER_ZH_CN=1)
+endif()
