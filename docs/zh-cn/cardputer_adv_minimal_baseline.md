@@ -30,7 +30,7 @@
 
 ## 当前验证状态
 
-仅完成 GitHub 源码差异清点与分支隔离。**尚未编译、烧录或证明新的中文固件可以启动。** 不把旧实验分支的硬件修复当成中文补丁。
+已经开始最小中文绘制与第一批菜单翻译；**尚未通过新的 ESP-IDF 固件构建或实机验证**。GitHub Actions 尚未返回本分支运行记录。不把旧实验分支的硬件修复当成中文补丁。
 
 ## 阶段 1：独立 UTF-8 解码器（已提交源码，未验证）
 
@@ -44,3 +44,13 @@ cc -std=c11 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-p
 ```
 
 以上是**待执行**命令，并非已获得的测试结果。下一步应先运行宿主测试，再最小化接入 Cardputer-Adv GUI 构建，并比较与原版相同 sdkconfig 下的镜像/内存；在获得构建证据之前不移植字体或翻译。
+
+## 阶段 2：最小中文预览（源码已实现）
+
+- `components/gui/canvas.c`：仅 Cardputer-Adv 打开 `FLIPPER_ZH_CN`，CJK 字符由 U8g2 GB2312 Flash 字体回退，ASCII 仍沿用原字体。
+- `components/gui/elements.c`：列表菜单的 UTF-8 滚动和截断不破坏码点边界。
+- `components/loader/loader_menu.c`：首批常见中文标签；保持英文 app ID、path、配置 key 不变；主菜单只在 List 样式显示中文。
+- 构建工作流升级为从原版 SHA 检出两个独立工作区，编译两份固件，比较 sdkconfig、静态 DRAM 与 Flash 镜像大小。
+- 独立宿主 GCC + ASan/UBSan 在本地镜像解码器代码上执行了回归测试并通过；仍需在 CI 用仓库中的源文件重复验证。
+- **不涉及**原版 `sdkconfig.defaults.m5stack_cardputer_adv`、分区表、`components/furi_hal/*`、`components/furi/core/thread.c` 或板级输入。
+- Draft PR：#2；试用编译与安全验证指引见 `docs/zh-cn/QUICK_TRIAL.md`。
