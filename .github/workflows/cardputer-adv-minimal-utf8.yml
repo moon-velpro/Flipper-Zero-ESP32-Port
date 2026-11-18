@@ -26,6 +26,22 @@ jobs:
             -Icomponents/gui components/gui/canvas_utf8.c tests/host/canvas_utf8_test.c \
             -o /tmp/cardputer_utf8_test
           /tmp/cardputer_utf8_test
+      - name: Reject duplicated Cardputer CJK helper definitions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          canvas = Path("components/gui/canvas.c").read_text()
+          for symbol in (
+              "static int8_t canvas_glyph_advance(",
+              "static void canvas_draw_unicode_glyph(",
+              "static void canvas_draw_utf8_mixed(",
+          ):
+              count = canvas.count(symbol)
+              if count != 1:
+                  raise SystemExit(f"Expected exactly one {symbol}, found {count}")
+          print("Cardputer CJK helper definitions: unique")
+          PY
 
   build-original-config:
     runs-on: ubuntu-24.04
