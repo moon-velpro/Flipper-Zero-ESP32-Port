@@ -258,6 +258,7 @@ static const char* loader_zh_cn_label(const char* english) {
         {"WiFi", "无线网络"},
         {"Infrared", "红外"},
         {"Interface", "界面"},
+        {"Interface:", "界面："},
         {"Graphics", "图形"},
         {"Main Menu", "主菜单"},
         {"Lock Screen", "锁屏"},
@@ -495,7 +496,7 @@ static void loader_menu_build_submenu(LoaderMenuApp* app) {
     for(size_t i = 0; i < FLIPPER_EXTSETTINGS_APPS_COUNT; i++) {
         submenu_add_item_ex(
             app->settings_menu,
-            FLIPPER_EXTSETTINGS_APPS[i].name,
+            LM_T(FLIPPER_EXTSETTINGS_APPS[i].name),
             (uint32_t)FLIPPER_EXTSETTINGS_APPS[i].path,
             loader_menu_settings_menu_callback,
             app);
@@ -503,7 +504,7 @@ static void loader_menu_build_submenu(LoaderMenuApp* app) {
         if(strcmp(FLIPPER_EXTSETTINGS_APPS[i].path, "about") == 0) {
             submenu_add_item(
                 app->settings_menu,
-                "Update Firmware",
+                LM_T("Update Firmware"),
                 0,
                 loader_menu_update_fw_callback,
                 app);
@@ -517,7 +518,7 @@ static void loader_menu_build_submenu(LoaderMenuApp* app) {
         }
         submenu_add_item_ex(
             app->settings_menu,
-            FLIPPER_SETTINGS_APPS[i].name,
+            LM_T(FLIPPER_SETTINGS_APPS[i].name),
             (uint32_t)FLIPPER_SETTINGS_APPS[i].name,
             loader_menu_settings_menu_callback,
             app);
@@ -564,7 +565,7 @@ static void loader_menu_interface_go_graphics(void* context, uint32_t index) {
 
 static void loader_menu_build_interface(LoaderMenuApp* app) {
     submenu_reset(app->interface_menu);
-    submenu_set_header(app->interface_menu, "Interface:");
+    submenu_set_header(app->interface_menu, LM_T("Interface:"));
     submenu_add_item(app->interface_menu, LM_T("Graphics"), 0, loader_menu_interface_go_graphics, app);
     submenu_add_item(app->interface_menu, LM_T("Main Menu"), 1, loader_menu_interface_go_main, app);
     submenu_add_item(app->interface_menu, LM_T("Lock Screen"), 2, loader_menu_interface_go_lock, app);
