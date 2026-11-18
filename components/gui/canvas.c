@@ -3,9 +3,6 @@
 #ifdef FLIPPER_ZH_CN
 #include "canvas_utf8.h"
 #endif
-#ifdef FLIPPER_ZH_CN
-#include "canvas_utf8.h"
-#endif
 #include "icon_animation_i.h"
 
 #include <furi.h>
